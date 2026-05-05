@@ -10,10 +10,10 @@
 - `python -m pip install -e ".[dev]"` installs the package in editable mode with lint/test tools.
 - `pytest` runs the full test suite (use `-m "not slow"` to skip slow tests).
 - `ruff check .` runs lint checks; `ruff format .` auto-formats the codebase.
-- `mypy xdflow` performs static type checks on library code.
+- `uvx ty check xdflow` performs static type checks on library code.
 
 ## Coding Style & Naming Conventions
-- Python 3.9+ with 4-space indentation.
+- Python 3.11+ with 4-space indentation.
 - Formatting and linting are enforced via Ruff (line length 120, double quotes).
 - Use descriptive snake_case for functions and modules; class names use CapWords.
 - Keep public APIs in `xdflow/__init__.py` minimal and explicit.

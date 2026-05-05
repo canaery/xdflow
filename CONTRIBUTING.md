@@ -14,7 +14,7 @@ python -m pip install -e ".[dev]"
 pytest
 ruff check .
 ruff format .
-mypy xdflow
+uvx ty check xdflow
 ```
 
 ## Guidelines

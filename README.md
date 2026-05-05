@@ -44,13 +44,13 @@ If you work with scientific data, you've probably hit these walls:
 
 `xdflow` provides:
 
-✅ **Dimension-aware transforms** that preserve labeled axes
-✅ **Reproducible pipelines** with deterministic state tracking
-✅ **Sophisticated cross-validation** that respects trial/session/subject structure
-✅ **First-class metadata** propagation through every step
-✅ **Flexible composition** patterns (sequential, parallel, conditional, per-group)
-✅ **Native xarray integration** with seamless sklearn interop
-✅ **Experiment tracking** with MLflow out of the box
+- ✅ **Dimension-aware transforms** that preserve labeled axes
+- ✅ **Reproducible pipelines** with deterministic state tracking
+- ✅ **Sophisticated cross-validation** that respects trial/session/subject structure
+- ✅ **First-class metadata** propagation through every step
+- ✅ **Flexible composition** patterns (sequential, parallel, conditional, per-group)
+- ✅ **Native xarray integration** with seamless sklearn interop
+- ✅ **Experiment tracking** with MLflow out of the box
 
 ---
 
