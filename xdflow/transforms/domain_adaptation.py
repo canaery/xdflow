@@ -160,7 +160,11 @@ class SingleTargetStrategy(AdaptiveStrategy):
     """
 
     def __init__(
-        self, group_coord: str, target_group: str | int | float, n_jobs: int = 1, adapt_sel: dict[str, Any] | None = None
+        self,
+        group_coord: str,
+        target_group: str | int | float,
+        n_jobs: int = 1,
+        adapt_sel: dict[str, Any] | None = None,
     ):
         """
         Initialize the SingleTargetStrategy.

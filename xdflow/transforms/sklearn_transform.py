@@ -43,7 +43,8 @@ class SKLearnTransform(Transform, SampleWeightMixin):
         estimator_cls: type[BaseEstimator],
         sample_dim: str,
         target_coord: str | None = None,
-        _estimator_instance: BaseEstimator | None = None,  # SKLearnPredictor needs to instantiate the estimator; only used internally, not by user
+        _estimator_instance: BaseEstimator
+        | None = None,  # SKLearnPredictor needs to instantiate the estimator; only used internally, not by user
         sample_weight_coord: str | None = "sample_weight",
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,

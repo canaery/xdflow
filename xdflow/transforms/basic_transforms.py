@@ -408,7 +408,8 @@ class FunctionTransform(Transform):
     def __init__(
         self,
         func: Callable,
-        expected_output_dims: tuple[str, ...] | None = None,  # needed for functions that change dimensionality (e.g. np.mean)
+        expected_output_dims: tuple[str, ...]
+        | None = None,  # needed for functions that change dimensionality (e.g. np.mean)
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
     ):
@@ -567,7 +568,11 @@ class TrialSampler(Transform):
     output_dims: tuple[str, ...] = ()
 
     def __init__(
-        self, n_trials: int, shuffle: bool = True, sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None
+        self,
+        n_trials: int,
+        shuffle: bool = True,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.n_trials = n_trials
