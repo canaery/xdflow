@@ -275,7 +275,9 @@ class AverageTransform(Transform):
     input_dims: tuple[str, ...] = ()
     output_dims: tuple[str, ...] = ()
 
-    def __init__(self, dims: str | tuple[str, ...], sel: dict[str, Any] = None, drop_sel: dict[str, Any] = None):
+    def __init__(
+        self, dims: str | tuple[str, ...], sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None
+    ):
         """
         Initializes the AverageTransform.
 
@@ -330,7 +332,9 @@ class FlattenTransform(Transform):
     input_dims: tuple[str, ...] = ()
     output_dims: tuple[str, ...] = ()
 
-    def __init__(self, dims: tuple[str, ...], sel: dict[str, Any] = None, drop_sel: dict[str, Any] = None):
+    def __init__(
+        self, dims: tuple[str, ...], sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None
+    ):
         """
         Initializes the FlattenTransform.
 
@@ -404,9 +408,9 @@ class FunctionTransform(Transform):
     def __init__(
         self,
         func: Callable,
-        expected_output_dims: tuple[str, ...] = None,  # needed for functions that change dimensionality (e.g. np.mean)
-        sel: dict[str, Any] = None,
-        drop_sel: dict[str, Any] = None,
+        expected_output_dims: tuple[str, ...] | None = None,  # needed for functions that change dimensionality (e.g. np.mean)
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
     ):
         """
         Initializes the FunctionTransform.
@@ -460,7 +464,7 @@ class UnflattenTransform(Transform):
     input_dims: tuple[str, ...] = ()
     output_dims: tuple[str, ...] = ()
 
-    def __init__(self, dim: str, sel: dict[str, Any] = None, drop_sel: dict[str, Any] = None):
+    def __init__(self, dim: str, sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None):
         """
         Initializes the UnflattenTransform.
 
@@ -563,7 +567,7 @@ class TrialSampler(Transform):
     output_dims: tuple[str, ...] = ()
 
     def __init__(
-        self, n_trials: int, shuffle: bool = True, sel: dict[str, Any] = None, drop_sel: dict[str, Any] = None
+        self, n_trials: int, shuffle: bool = True, sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.n_trials = n_trials

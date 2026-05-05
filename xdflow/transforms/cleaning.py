@@ -43,13 +43,13 @@ class RemoveMissingBanksTransform(Transform):
         std_of_means_max: float = 3000.0,
         mean_of_stds_min: float = 100.0,
         mean_of_means_min: float = 10000.0,
-        blocks: dict = None,
+        blocks: dict[str, slice] | None = None,
         excluded_channels: Sequence[str] | None = None,
         expected_signal_channels: int | None = 127,
-        sel: dict = None,
-        drop_sel: dict = None,
-        transform_sel: dict = None,
-        transform_drop_sel: dict = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
+        transform_sel: dict[str, object] | None = None,
+        transform_drop_sel: dict[str, object] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         if blocks is None:
@@ -172,8 +172,8 @@ class CARTransform(Transform):
         car_method: str = "by_32",
         excluded_channels: Sequence[str] | None = None,
         expected_signal_channels: int | None = 127,
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.car_method = car_method
@@ -252,8 +252,8 @@ class RegressOutReferenceTransform(Transform):
         self,
         reference_channel: str,
         excluded_channels: Sequence[str] | None = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
     ):
         if not reference_channel:
             raise ValueError("reference_channel must be provided.")
@@ -321,10 +321,10 @@ class RemoveOutliersTransform(Transform):
         by_dim: str,
         std_threshold: float = 5.0,
         use_fit: bool = False,
-        sel: dict = None,
-        drop_sel: dict = None,
-        transform_sel: dict = None,
-        transform_drop_sel: dict = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
+        transform_sel: dict[str, object] | None = None,
+        transform_drop_sel: dict[str, object] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         self.std_threshold = std_threshold

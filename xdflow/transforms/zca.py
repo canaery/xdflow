@@ -50,8 +50,8 @@ class LocalZCAWhitening(Transform):
         n_components: float | int | None = None,
         pca_frac_to_keep: float | None = None,
         center_data: bool | str = True,
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.grid_layout = grid_layout
@@ -399,8 +399,8 @@ class GlobalZCAWhitening(Transform):
         center_data: bool | str = True,
         keep_in_pc_space: bool = False,
         shrinkage: str | None = None,
-        sel: dict | None = None,
-        drop_sel: dict | None = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
     ):
         super().__init__(
             sel=sel,
@@ -647,8 +647,8 @@ class GlobalColoringProjection(Transform):
         n_components: float | int | None = None,
         pca_frac_to_keep: float | None = None,
         center_data: bool | str = True,
-        sel: dict | None = None,
-        drop_sel: dict | None = None,
+        sel: dict[str, object] | None = None,
+        drop_sel: dict[str, object] | None = None,
     ):
         """Initialize the transform.
 

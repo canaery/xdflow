@@ -257,10 +257,10 @@ def _map_from_grid(
 def _pyramid_to_dataarray(
     pyramid: list[np.ndarray],
     keep_only_top_pyramid: bool = True,
-    original_dims: tuple[str, ...] = None,
-    original_coords: dict[str, Any] = None,
-    original_sizes: dict[str, int] = None,
-    original_attrs: dict[str, Any] = None,
+    original_dims: tuple[str, ...] | None = None,
+    original_coords: dict[str, Any] | None = None,
+    original_sizes: dict[str, int] | None = None,
+    original_attrs: dict[str, Any] | None = None,
 ) -> xr.DataArray:
     """
     Converts a pyramid of spatial features into a single feature array.
@@ -357,10 +357,10 @@ class LaplacianCSDTransform(Transform):
         scaling: float = 1.0,
         handle_nans: bool = True,
         verbosity: int = 0,
-        sel: dict = None,
-        drop_sel: dict = None,
-        transform_sel: dict = None,
-        transform_drop_sel: dict = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
+        transform_sel: dict[str, Any] | None = None,
+        transform_drop_sel: dict[str, Any] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         self.grid_layout = grid_layout
@@ -505,8 +505,8 @@ class WindowMeanPyramidTransform(Transform):
         levels: int = 1,
         keep_only_top_pyramid: bool = True,
         handle_nans: bool = True,
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.grid_layout = grid_layout
@@ -606,9 +606,9 @@ class GaussianPyramidTransform(Transform):
         sigma: float = 1.0,
         keep_only_top_pyramid: bool = True,
         handle_nans: bool = True,
-        gaussian_kwargs: dict | None = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        gaussian_kwargs: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.grid_layout = grid_layout

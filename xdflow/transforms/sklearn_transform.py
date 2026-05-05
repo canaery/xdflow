@@ -42,11 +42,11 @@ class SKLearnTransform(Transform, SampleWeightMixin):
         self,
         estimator_cls: type[BaseEstimator],
         sample_dim: str,
-        target_coord: str = None,
-        _estimator_instance: BaseEstimator = None,  # SKLearnPredictor needs to instantiate the estimator; only used internally, not by user
+        target_coord: str | None = None,
+        _estimator_instance: BaseEstimator | None = None,  # SKLearnPredictor needs to instantiate the estimator; only used internally, not by user
         sample_weight_coord: str | None = "sample_weight",
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs: Any,
     ):
         """
@@ -304,10 +304,10 @@ class SKLearnTransformer(SKLearnTransform):
         self,
         estimator_cls: type[BaseEstimator],
         sample_dim: str,
-        target_coord: str = None,
+        target_coord: str | None = None,
         output_dim_name: str = "component",
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs: Any,
     ):
         """
@@ -383,12 +383,12 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
         estimator_cls: type[BaseEstimator],
         sample_dim: str,
         target_coord: str | list[str],
-        encoder: LabelEncoder = None,
+        encoder: LabelEncoder | None = None,
         proba: bool = False,
         is_classifier: bool | None = None,
         multi_output: bool = False,
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         sample_weight_coord: str | None = "sample_weight",
         **kwargs: Any,
     ):

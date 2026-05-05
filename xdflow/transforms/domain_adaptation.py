@@ -74,7 +74,7 @@ class AdaptiveStrategy(ABC):
     mathematical computations.
     """
 
-    def __init__(self, group_coord: str, n_jobs: int = 1, adapt_sel: dict = None):
+    def __init__(self, group_coord: str, n_jobs: int = 1, adapt_sel: dict[str, Any] | None = None):
         """
         Initialize the AdaptiveStrategy.
 
@@ -159,7 +159,9 @@ class SingleTargetStrategy(AdaptiveStrategy):
     SingleTargetStrategy can be implemented by any aligner that inherits from SingleTargetAligner.
     """
 
-    def __init__(self, group_coord: str, target_group: str | int | float, n_jobs: int = 1, adapt_sel: dict = None):
+    def __init__(
+        self, group_coord: str, target_group: str | int | float, n_jobs: int = 1, adapt_sel: dict[str, Any] | None = None
+    ):
         """
         Initialize the SingleTargetStrategy.
 
@@ -296,7 +298,7 @@ class JointGroupStrategy(AdaptiveStrategy):
     JointGroupStrategy can be implemented by any aligner that inherits from JointGroupAligner.
     """
 
-    def __init__(self, group_coord: str, n_jobs: int = 1, adapt_sel: dict = None):
+    def __init__(self, group_coord: str, n_jobs: int = 1, adapt_sel: dict[str, Any] | None = None):
         """
         Initialize the JointGroupStrategy.
 
@@ -726,7 +728,7 @@ class SamplingMixin:
         target_coord: str,
         sample_dim: str,
         sampling_method: str,
-        min_count: int = None,
+        min_count: int | None = None,
         random_state: int = 0,
     ) -> xr.DataArray:
         """Samples the data according to the specified method."""
@@ -788,12 +790,12 @@ class ProcrustesAligner(SingleTargetAligner, SamplingMixin):
         strategy_name: str = "single_target",
         sampling_method: str = "mean",
         random_state: int = 0,
-        group_coord: str = None,
-        target_group: str | int | float = None,
+        group_coord: str | None = None,
+        target_group: str | int | float | None = None,
         n_jobs: int = 1,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -838,7 +840,7 @@ class ProcrustesAligner(SingleTargetAligner, SamplingMixin):
             "min_count",
         ], "Sampling method must be either 'mean' or 'min_count'."
 
-    def _fit_target(self, container: DataContainer, min_count: int = None, **kwargs) -> dict[str, Any]:
+    def _fit_target(self, container: DataContainer, min_count: int | None = None, **kwargs) -> dict[str, Any]:
         """
         Fit the target domain.
         """
@@ -862,7 +864,7 @@ class ProcrustesAligner(SingleTargetAligner, SamplingMixin):
             "centered": target_centered,
         }
 
-    def _adapt_source(self, container: DataContainer, min_count: int = None, **kwargs) -> dict[str, Any]:
+    def _adapt_source(self, container: DataContainer, min_count: int | None = None, **kwargs) -> dict[str, Any]:
         """
         Adapt a single target domain.
         """
@@ -961,12 +963,12 @@ class CoralAligner(SingleTargetAligner):
         sample_dim: str,
         reg: float = 1e-5,
         strategy_name: str = "single_target",
-        group_coord: str = None,
-        target_group: str | int | float = None,
+        group_coord: str | None = None,
+        target_group: str | int | float | None = None,
         n_jobs: int = 1,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -1109,12 +1111,12 @@ class SAAligner(SingleTargetAligner):
         sample_dim: str,
         n_components: int = 10,
         strategy_name: str = "single_target",
-        group_coord: str = None,
-        target_group: str | int | float = None,
+        group_coord: str | None = None,
+        target_group: str | int | float | None = None,
         n_jobs: int = 1,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -1228,13 +1230,13 @@ class CCAAligner(JointGroupAligner, SamplingMixin):
         output_dim_name: str = "component",
         n_components: int = 10,
         strategy_name: str = "joint",
-        group_coord: str = None,
+        group_coord: str | None = None,
         n_jobs: int = 1,
         sampling_method: str = "mean",
         random_state: int = 0,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -1274,7 +1276,9 @@ class CCAAligner(JointGroupAligner, SamplingMixin):
 
         assert self.sampling_method in ["mean", "min_count"], "Sampling method must be either 'mean' or 'min_count'."
 
-    def _fit_joint(self, group_containers: dict, min_count: int = None, **kwargs) -> dict[Hashable, dict[str, Any]]:
+    def _fit_joint(
+        self, group_containers: dict[Hashable, DataContainer], min_count: int | None = None, **kwargs
+    ) -> dict[Hashable, dict[str, Any]]:
         """
         Fit the CCA model for a domain pair.
         """
@@ -1374,11 +1378,11 @@ class MCCAAligner(JointGroupAligner, SamplingMixin):
         strategy_name: str = "joint",
         sampling_method: str = "mean",
         random_state: int = 0,
-        group_coord: str = None,
+        group_coord: str | None = None,
         n_jobs: int = 1,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -1419,7 +1423,9 @@ class MCCAAligner(JointGroupAligner, SamplingMixin):
 
         assert self.sampling_method in ["mean", "min_count"], "Sampling method must be either 'mean' or 'min_count'."
 
-    def _fit_joint(self, group_containers: dict, min_count: int = None, **kwargs) -> dict[Hashable, dict[str, Any]]:
+    def _fit_joint(
+        self, group_containers: dict[Hashable, DataContainer], min_count: int | None = None, **kwargs
+    ) -> dict[Hashable, dict[str, Any]]:
         """
         Fit all domains jointly using MCCA.
         """
@@ -1600,11 +1606,11 @@ class GCCAAligner(JointGroupAligner, SamplingMixin):
         strategy_name: str = "joint",
         sampling_method: str = "mean",
         random_state: int = 0,
-        group_coord: str = None,
+        group_coord: str | None = None,
         n_jobs: int = 1,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -1645,7 +1651,9 @@ class GCCAAligner(JointGroupAligner, SamplingMixin):
 
         assert self.sampling_method in ["mean", "min_count"], "Sampling method must be either 'mean' or 'min_count'."
 
-    def _fit_joint(self, group_containers: dict, min_count: int = None, **kwargs) -> dict[Hashable, dict[str, Any]]:
+    def _fit_joint(
+        self, group_containers: dict[Hashable, DataContainer], min_count: int | None = None, **kwargs
+    ) -> dict[Hashable, dict[str, Any]]:
         """
         Fit all domains jointly using GCCA.
         """
@@ -1778,11 +1786,11 @@ class JDAAligner(JointGroupAligner, SamplingMixin):
         strategy_name: str = "joint",
         sampling_method: str = "mean",
         random_state: int = 0,
-        group_coord: str = None,
+        group_coord: str | None = None,
         n_jobs: int = 1,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -1833,7 +1841,9 @@ class JDAAligner(JointGroupAligner, SamplingMixin):
         assert self.kernel in ["linear", "rbf"], "kernel must be 'linear' or 'rbf'"
         assert self.sampling_method in ["mean", "min_count"], "sampling_method must be 'mean' or 'min_count'"
 
-    def _fit_joint(self, group_containers: dict, min_count: int = None, **kwargs) -> dict[Hashable, dict[str, Any]]:
+    def _fit_joint(
+        self, group_containers: dict[Hashable, DataContainer], min_count: int | None = None, **kwargs
+    ) -> dict[Hashable, dict[str, Any]]:
         """
         Fit all groups jointly using JDA.
 
@@ -2120,18 +2130,18 @@ class KCCAAligner(JointGroupAligner, SamplingMixin):
         output_dim_name: str = "component",
         n_components: int = 10,
         strategy_name: str = "joint",
-        group_coord: str = None,
+        group_coord: str | None = None,
         n_jobs: int = 1,
         sampling_method: str = "mean",
         random_state: int = 0,
         kernel: str = "linear",
-        gamma: float = None,
+        gamma: float | None = None,
         degree: int = 3,
         coef0: float = 1.0,
         reg: float = 1e-5,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -2181,7 +2191,9 @@ class KCCAAligner(JointGroupAligner, SamplingMixin):
 
         assert self.sampling_method in ["mean", "min_count"], "Sampling method must be either 'mean' or 'min_count'."
 
-    def _fit_joint(self, group_containers: dict, min_count: int = None, **kwargs) -> dict[Hashable, dict[str, Any]]:
+    def _fit_joint(
+        self, group_containers: dict[Hashable, DataContainer], min_count: int | None = None, **kwargs
+    ) -> dict[Hashable, dict[str, Any]]:
         """
         Fit the KCCA model for a domain pair.
         """

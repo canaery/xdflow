@@ -1,4 +1,5 @@
 import warnings
+from typing import Any
 
 from xdflow.core.base import Transform
 from xdflow.core.data_container import DataContainer
@@ -21,11 +22,11 @@ class DemeanTransform(Transform):
         self,
         by_dim: str | list[str] | tuple[str, ...],
         use_fit: bool = False,
-        fit_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
-        transform_sel: dict = None,
-        transform_drop_sel: dict = None,
+        fit_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
+        transform_sel: dict[str, Any] | None = None,
+        transform_drop_sel: dict[str, Any] | None = None,
     ):
         """
         Initializes the DemeanTransform.
@@ -103,11 +104,11 @@ class ZScoreTransform(Transform):
         self,
         by_dim: str | list[str] | tuple[str, ...],
         use_fit: bool = False,
-        fit_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
-        transform_sel: dict = None,
-        transform_drop_sel: dict = None,
+        fit_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
+        transform_sel: dict[str, Any] | None = None,
+        transform_drop_sel: dict[str, Any] | None = None,
     ):
         """
 
