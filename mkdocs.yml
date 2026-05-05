@@ -1,0 +1,52 @@
+site_name: xdflow
+site_description: Dimension-aware ML pipelines for scientific data
+site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://xdflow.readthedocs.io/"]
+repo_url: https://github.com/canaery/xdflow
+repo_name: canaery/xdflow
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  features:
+    - navigation.sections
+    - navigation.instant
+    - navigation.top
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: teal
+      accent: amber
+
+extra_javascript:
+  - javascript/readthedocs.js
+
+markdown_extensions:
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+plugins:
+  - search
+
+nav:
+  - Overview: index.md
+  - Installation: installation.md
+  - Concepts:
+      - concepts/index.md
+      - Data Contract: concepts/data_contract.md
+  - Tutorials:
+      - tutorials/index.md
+      - Basic Pipeline Walkthrough: tutorials/basic-pipeline.md
+  - API Reference:
+      - api/index.md
+      - Core: api/core.md
+      - Composition: api/composition.md
+      - Cross-Validation: api/cv.md
+      - Transforms: api/transforms.md
+      - Utilities: api/utils.md
+  - Development: development.md

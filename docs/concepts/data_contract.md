@@ -1,46 +1,80 @@
-# Data & Dimension Contract
+# Data Contract
 
-`xdflow` pipelines operate on `xarray.DataArray` objects wrapped by `DataContainer`. This section defines the minimum contract expected by the runtime so users can adapt their own scientific data with confidence.
+`xdflow` works on `xarray.DataArray` objects wrapped by `DataContainer`. The library does not require a fixed schema beyond a few conventions, but it assumes your data is labeled consistently enough for transforms to reason about dimensions by name.
+
+## Required structure
+
+- supervised workflows are organized around a `trial` dimension
+- target labels typically live in coordinates attached to `trial`
+- transforms may require additional dimensions such as `channel`, `time`, `feature`, or `freq_band`
+
+Each transform advertises dimension expectations through `input_dims` and `output_dims`, or computes them dynamically through `get_expected_output_dims`.
 
 ## Dimensions
 
-- Pipelines are dimension-aware: every transform declares `input_dims` / `output_dims`.
-- The only dimension **required** by the base container is `trial`. Everything else is optional but, when present, must be named consistently.
-- Common dims: `trial`, `channel`, `time`, `frequency`, `feature`. You can add domain-specific dims (`subject`, `roi`, `phase`) without touching the runtime as long as you keep them labeled.
-- Transforms must refer to dims by name (`data.mean(dim="time")`) and never rely on positional axes.
+- dimension names are part of the contract, not incidental metadata
+- transforms should use dimension names such as `data.mean(dim="time")`
+- positional-axis logic should be avoided unless a transform is explicitly reshaping into a new labeled representation
 
-## Coordinates & metadata
+Common dimension names in this repo include:
 
-- Coordinates store metadata such as channel names, timestamps, subject IDs, etc.
-- `DataContainer` keeps coordinates immutable; transforms should modify `.data` but avoid mutating `.coords` unless that is the goal of the transform (e.g., renaming dims).
-- When creating new dims, generate descriptive coordinate labels automatically whenever possible.
-- Attach experiment metadata via coordinates/attrs rather than relying on ad-hoc dictionaries.
+- `trial`
+- `channel`
+- `time`
+- `feature`
+- `prediction`
+- `freq_band`
+
+Domain-specific labels are fine as long as they remain internally consistent.
+
+## Coordinates and attrs
+
+Coordinates are the main place for labels and grouping metadata:
+
+- class labels, sessions, animals, subjects, or conditions should be stored as coordinates
+- timestamps and channel labels should remain attached to the relevant dimension
+- additional metadata can live in `attrs`
+
+Predictors and splitters often depend on coordinates such as `stimulus`, `session`, or `animal`, so those names need to exist on the data used by the relevant workflow.
+
+## Immutability
+
+Transforms are expected to behave functionally:
+
+- `transform()` should return a new `DataContainer`
+- the incoming container should not be mutated in place
+- selective transforms that write results back into a larger array must do so on a copied container
+
+This contract is exercised by the test suite, especially the transform immutability tests.
 
 ## Selection semantics
 
-- All transforms accept optional `sel`, `drop_sel`, `transform_sel`, and `transform_drop_sel` arguments.
-- `sel` / `drop_sel` run before the transform executes and effectively narrow or drop data along labeled dimensions.
-- `transform_sel` / `transform_drop_sel` operate **inside** the transform by copying the container, applying the transform on a sub-selection, and writing back into the full array. Transforms must declare `_supports_transform_sel = True` to enable this advanced mode.
-- Any transform exposing these selectors must preserve immutability: never mutate the incoming container or its `.data`.
+All transforms support optional selection arguments:
 
-## Immutability & history
+- `sel`: apply an `xarray.sel(...)` selection before the transform
+- `drop_sel`: drop labels before the transform
+- `transform_sel`: transform only a selected subset, then write it back into the original structure
+- `transform_drop_sel`: inverse form of `transform_sel`
 
-- All `transform()` implementations must return a **new** `DataContainer`.
-- Tests in `tests/test_transform_immutability.py` enforce this contract: they fail if a transform mutates the original container or returns the same object.
-- `DataContainer` automatically maintains `data_history` in `xarray` attrs; transform authors should append summaries (e.g., transform name + params) so downstream debugging is trivial.
+Selective in-place replacement is only valid for transforms that declare support for it via `_supports_transform_sel`.
 
-## Fit/transform separation
+## Fitted state
 
-- Stateless transforms (`is_stateful = False`) may run once and be reused across cross-validation folds.
-- Stateful transforms must keep learned parameters out of `__init__` so cloning/cloning-based CV works.
-- Any learned state should be stored on private attributes (e.g., `_encoder`), and those attributes should be reset when `fit()` is called.
+Stateful transforms must keep learned parameters out of the constructor so cloning stays safe during cross-validation.
 
-## Best practices for new transforms
+Good pattern:
 
-1. **Explicit constructor signature** – All hyperparameters must be explicit keyword arguments recorded on `self`.
-2. **Type hints** – Use Python typing (≥3.9) for clarity.
-3. **Dimension checks** – Validate `container.data.dims` early; raise `ValueError` when expectations are not met.
-4. **Metadata propagation** – When operations reduce dims, propagate or recompute coords/attrs so users keep interpretability.
-5. **Testing** – Add cases to `tests/test_transform_immutability.py` and supply focused unit tests under `tests/transforms/` describing the new behavior.
+- constructor arguments are pure hyperparameters
+- fitted artifacts are stored on private attributes such as `_estimator`, `_encoder`, or `_stats`
 
-Following this contract keeps every pipeline reproducible, composable, and predictable—regardless of the scientific domain layered on top.
+Bad pattern:
+
+- populating constructor-declared attributes with learned values during `fit`
+
+## Guidance for authoring new transforms
+
+1. Define explicit constructor parameters and assign them to matching public attributes.
+2. Validate dimensions and coordinate assumptions early.
+3. Preserve or intentionally recompute coordinates when reshaping data.
+4. Keep transform logic label-aware.
+5. Add focused unit tests, including immutability coverage where applicable.

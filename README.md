@@ -230,14 +230,14 @@ Build complex pipelines with:
 
 ## Documentation
 
-**[Full Documentation](https://xdflow.readthedocs.io)** (coming soon)
+**[Full Documentation](https://xdflow.readthedocs.io)**
 
 **Quick Links**:
-- [Data & Dimension Contract](docs/concepts/data_contract.md) — understand the container + transform rules
+- [Data Contract](docs/concepts/data_contract.md) — understand the container + transform rules
 - [Installation & Setup](docs/installation.md)
-- [Core Concepts](docs/concepts.md)
-- [Tutorials](docs/tutorials/README.md)
-- [API Reference](docs/api/README.md)
+- [Core Concepts](docs/concepts/index.md)
+- [Tutorials](docs/tutorials/index.md)
+- [API Reference](docs/api/index.md)
 
 ---
 
