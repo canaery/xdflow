@@ -252,6 +252,14 @@ class SampledDomainKFoldValidator(CrossValidator):
             yield train_indices, target_val_indices
 
     def score_on_holdout(self, initial_container: DataContainer, verbose: bool = False) -> float:
+        """Fit and score on the target-domain holdout using the validator sampling policy.
+
+        Unlike the base ``KFoldValidator`` holdout path, the final training set is not
+        all non-holdout trials. It is all source-domain trials plus the same
+        label-conditional sampled subset of non-holdout target-domain trials used
+        during cross-validation. This keeps holdout scoring aligned with the
+        few-shot/zero-shot transfer regime configured for the validator.
+        """
         self._find_and_fit_encoders(self.pipeline, initial_container)
 
         stateless_pipeline, stateful_pipeline = self._auto_detect_pipeline_parts(self.pipeline)

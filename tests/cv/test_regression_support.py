@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression, Ridge
 from xdflow.composite import Pipeline
 from xdflow.core.data_container import DataContainer
 from xdflow.cv import KFoldValidator
+from xdflow.transforms.basic_transforms import SampleWeightTransform
 from xdflow.transforms.sklearn_transform import SKLearnPredictor
 
 
@@ -126,3 +127,32 @@ def test_manual_override():
 
     assert clf.is_classifier is True
     assert clf.is_regressor is False
+
+
+def test_finalize_pipeline_prepares_training_only_weight_transform_for_inference():
+    data = _create_test_data(task="classification")
+
+    pipeline = Pipeline(
+        "weighted_classifier",
+        [
+            ("weights", SampleWeightTransform(coord_name="session", weight_map={"s1": 1.0, "s2": 2.0, "s3": 3.0})),
+            (
+                "classifier",
+                SKLearnPredictor(
+                    LogisticRegression,
+                    sample_dim="trial",
+                    target_coord="label",
+                    max_iter=200,
+                ),
+            ),
+        ],
+    )
+    cv = KFoldValidator(n_splits=3)
+    cv.set_pipeline(pipeline)
+
+    finalized = cv.finalize_pipeline(data, verbose=False)
+    inference_data = DataContainer(data.data.drop_vars("session"))
+
+    predictions = finalized.predict(inference_data)
+
+    assert predictions.data.dims == ("trial",)

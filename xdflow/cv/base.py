@@ -881,6 +881,9 @@ class CrossValidator(ABC):
         self._find_and_fit_encoders(self.pipeline, container)
 
         fitted_pipeline.fit(container, verbose=verbose)
+        prepare_for_inference = getattr(fitted_pipeline, "prepare_for_inference", None)
+        if callable(prepare_for_inference):
+            prepare_for_inference()
 
         return fitted_pipeline
 

@@ -170,7 +170,7 @@ def test_classifier_rejects_multi_target():
 
     target_coords = ["t0_target", "t1_target"]
 
-    with pytest.raises(ValueError, match="Multi-target prediction is only supported for regressors"):
+    with pytest.raises(ValueError, match="Multiple classifier targets require is_multilabel=True"):
         SKLearnPredictor(
             LogisticRegression,
             sample_dim="trial",

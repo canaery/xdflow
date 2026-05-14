@@ -157,7 +157,13 @@ class Transform(ABC):
         if self.transform_sel and self.transform_drop_sel:
             raise ValueError("Cannot specify both 'transform_sel' and 'transform_drop_sel'.")
         if (self.transform_sel or self.transform_drop_sel) and not self.supports_transform_sel:
-            raise TypeError(f"{self.__class__.__name__} does not support selective transformation.")
+            selection_arg = "transform_sel" if self.transform_sel else "transform_drop_sel"
+            raise TypeError(
+                f"{self.__class__.__name__} does not support {selection_arg}. "
+                "Selective transformation is only supported for transforms whose outputs can be safely written "
+                "back into the original array without changing dims, sizes, or coordinates. Use sel/drop_sel to "
+                "subset the whole output, or apply selection before this transform."
+            )
 
     @property
     def supports_transform_sel(self) -> bool:
@@ -570,8 +576,8 @@ class Predictor(Transform, ABC):
             if is_multi_target:
                 raise ValueError(
                     f"{self.__class__.__name__} initialized with is_classifier=True and multiple target_coord. "
-                    "Multi-target prediction is only supported for regressors or multilabel classifiers "
-                    "(set is_multilabel=True)."
+                    "Multiple classifier targets require is_multilabel=True. Use a regressor for continuous "
+                    "multi-output targets."
                 )
             # For classifiers, always ensure an encoder exists to standardize label handling.
             if encoder is None:

@@ -143,6 +143,9 @@ class SampleWeightTransform(Transform):
     The resulting weights are written as a new coordinate (default
     ``sample_weight``) on the same dimension(s) as the source, so downstream
     predictors can consume them without changing the data layout.
+
+    Partial write-back with ``transform_sel``/``transform_drop_sel`` is not
+    supported because this transform changes coordinates.
     """
 
     is_stateful: bool = False
@@ -160,6 +163,8 @@ class SampleWeightTransform(Transform):
         dtype: np.dtype | type = np.float64,
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
+        transform_sel: dict | None = None,
+        transform_drop_sel: dict | None = None,
     ):
         """
         Args:
@@ -172,7 +177,7 @@ class SampleWeightTransform(Transform):
         """
         if weight_map is not None and weight_func is not None:
             raise ValueError("Specify either 'weight_map' or 'weight_func', not both.")
-        super().__init__(sel=sel, drop_sel=drop_sel)
+        super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         self.coord_name = coord_name
         self.weight_map = {key: float(value) for key, value in weight_map.items()} if weight_map is not None else None
         self.weight_func = weight_func
@@ -270,7 +275,11 @@ class SampleWeightTransform(Transform):
 
 
 class BalanceClassWeightTransform(Transform):
-    """Attach a sample-weight coordinate that balances classes, optionally by domain."""
+    """Attach a sample-weight coordinate that balances classes, optionally by domain.
+
+    Partial write-back with ``transform_sel``/``transform_drop_sel`` is not
+    supported because this transform changes coordinates.
+    """
 
     is_stateful: bool = False
     input_dims: tuple[str, ...] = ()
@@ -289,6 +298,8 @@ class BalanceClassWeightTransform(Transform):
         dtype: np.dtype | type = np.float64,
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
+        transform_sel: dict | None = None,
+        transform_drop_sel: dict | None = None,
     ):
         if weight_normalize is not None and weight_normalize not in {"mean", "sum"}:
             raise ValueError("weight_normalize must be one of: None, 'mean', or 'sum'.")
@@ -302,7 +313,7 @@ class BalanceClassWeightTransform(Transform):
         elif domain_coord is None:
             raise ValueError("domain_coord is required when balance_domains=True.")
 
-        super().__init__(sel=sel, drop_sel=drop_sel)
+        super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         self.class_coord = class_coord
         self.balance_domains = balance_domains
         self.domain_coord = domain_coord

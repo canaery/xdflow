@@ -11,32 +11,34 @@
 
 ## The Problem
 
-If you work with scientific data, you've probably hit these walls:
+sklearn assumes `(samples, features)`. Scientific data isn't shaped like that — and the workarounds leak, lose metadata, or both.
 
-**sklearn pipelines break on structured data**
-```python
-# Your data has dimensions: (trials × channels × time × frequency)
-# sklearn expects: (samples × features)
-# You spend hours reshaping, lose metadata, break reproducibility
+Real samples carry structure: trials, channels, time bins, frequency bands, sessions, subjects, conditions, devices. The standard Python ML stack forces that into a 2D array plus side tables, and four failure modes follow.
+
+**Reshaping erases the contract.** Flatten `trial × channel × time` into `sample × feature` and you lose the names that explain what each axis means. Is feature 143 channel `C3` at 220 ms, beta power in a window, or the output of a previous projection? Shape mistakes still produce valid arrays and plausible metrics, so the bugs survive past the point they should have been caught.
+
+**Metadata becomes side-channel bookkeeping.** `stimulus`, `session`, `subject`, `time_offset_ms` live in separate arrays from the data they describe:
+
+```text
+# Before flattening — coordinates are attached to the data
+<xarray.DataArray (trial: 180, channel: 4, time: 25)>
+Coordinates:
+  * channel    (channel) <U3 'ch0' 'ch1' 'ch2' 'ch3'
+  * time       (time) float64 -0.2 -0.158 ... 0.758 0.8
+    stimulus   (trial) <U4 'odor' 'rest' 'tone' ...
+
+# After sklearn reshape — coordinates are gone, you maintain them by hand
+X.shape           # (180, 100)
+y = stimuli       # separate array, aligned by convention
+channels = ...    # another separate array
+times = ...       # another separate array
 ```
 
-**No standard way to handle trial structure, sessions, or groups**
-```python
-# You need: "fit PCA per subject, then pool for classifier"
-# sklearn offers: global fit() or manual loops
-```
+Every filter, split, resample, prediction, and score then has to keep those side arrays aligned by hand. Intermediate outputs become opaque because the data no longer says what each sample or feature represents.
 
-**Cross-validation doesn't respect your data's structure**
-```python
-# You need: "leave-one-session-out, stratify by condition"
-# sklearn offers: basic K-fold, group CV with no stratification
-```
+**Cross-validation forces a leakage/speed tradeoff.** Some transforms are expensive but stateless (fixed filtering, feature extraction). Others must be learned inside each training fold (PCA, normalization statistics, classifiers, domain adapters). Without an explicit pipeline model, the choice is: recompute everything per fold (safe but slow), or preprocess once (fast but leaks).
 
-**Transforms don't preserve metadata**
-```python
-# After 5 pipeline steps, you've lost track of which channel is which
-# Debugging is impossible, reproducibility is a prayer
-```
+**Structured evaluation doesn't fit basic split loops.** Real experiments need leave-one-session-out, leave-one-subject-out, stratification by condition, trial grouping, few-shot target-domain sampling, or scoring rules that exclude specific event types or offsets. In plain sklearn, each of these becomes a custom split loop with manually synchronized metadata.
 
 ---
 
@@ -44,14 +46,14 @@ If you work with scientific data, you've probably hit these walls:
 
 `xdflow` provides:
 
-- ✅ **Dimension-aware transforms** that preserve labeled axes
+- ✅ **Dimension-aware transforms** with explicit shape contracts and labeled axes
+- ✅ **First-class metadata** that propagates through every step
+- ✅ **Leakage-aware cross-validation** that separates stateless preprocessing from per-fold fitted steps, with structured splits across trial/session/subject/domain
 - ✅ **Reproducible pipelines** with deterministic state tracking
-- ✅ **Sophisticated cross-validation** that respects trial/session/subject structure
-- ✅ **First-class metadata** propagation through every step
 - ✅ **Flexible composition** patterns (sequential, parallel, conditional, per-group)
 - ✅ **Native xarray integration** with seamless sklearn interop
 - ✅ **Multi-output and few-shot transfer workflows** for scientific ML
-- ✅ **Experiment tracking** with MLflow out of the box
+- ✅ **Optional experiment tracking** with MLflow
 
 ---
 
@@ -169,42 +171,27 @@ pytest
 ## Key Features
 
 ### 1. **Transform System**
-All transforms follow a `fit()` / `transform()` / `fit_transform()` contract with:
-- Automatic input/output dimension validation
-- Deterministic state serialization (every transform is exactly reproducible)
-- Metadata preservation (channel names, coordinates, etc. flow through)
-- Immutability (safe for parallel execution, nested CV)
+A `fit()` / `transform()` / `fit_transform()` contract with input/output dimension validation, deterministic state serialization, and immutability — safe for parallel execution and nested CV.
 
 ### 2. **Composite Transforms**
-Build complex pipelines with:
+Concrete building blocks for pipelines that branch, switch, or specialize per group:
 - **Pipeline**: Sequential composition (`A → B → C`)
 - **TransformUnion**: Parallel feature extraction (`[A, B, C] → concatenate`)
 - **SwitchTransform**: Conditional selection (`if condition: A else: B`)
 - **GroupApplyTransform**: Per-group fitting (`fit PCA separately per subject`)
 - **OptionalTransform**: Toggle transforms on/off for ablation studies
 
-### 3. **Intelligent Cross-Validation**
-- Automatically separates **stateless** preprocessing (computed once) from **stateful** models (refitted per fold)
-- Orders-of-magnitude speedup on expensive transforms (spectrograms, wavelets)
-- Supports grouping, stratification, custom CV strategies
-- Out-of-fold predictions for stacking/ensembles
+### 3. **Cross-Validation**
+Stateless preprocessing is computed once; stateful steps are refit per fold — large speedups on expensive transforms like spectrograms and wavelets. Out-of-fold predictions are emitted for stacking and ensembles.
 
 ### 4. **Hyperparameter Tuning**
-- Optuna integration with Bayesian optimization
-- Multi-pipeline comparison (compare architectures, not just hyperparams)
-- Automatic MLflow logging
-- Seed management for reproducibility
+Optuna-based Bayesian optimization with multi-pipeline comparison (compare architectures, not just hyperparams), optional MLflow logging, and explicit seed management.
 
 ### 5. **Multi-Output Support**
-- Native multi-target regression (predict multiple outputs simultaneously)
-- Multilabel classification with sklearn-compatible estimators
-- Proper handling of sample weights
-- Classification and regression in unified interface
+A unified interface for multi-target regression, multilabel classification, and sample-weighted training with sklearn-compatible estimators.
 
 ### 6. **LLM-Friendly API Contracts**
-- Small transform and pipeline contracts that are easy to implement and review
-- Clear separation between scientific computation, orchestration, and evaluation
-- A scaffold for having LLMs write focused transforms instead of fragile one-off scripts
+Transform and pipeline contracts are small enough that an LLM can write a focused, reviewable transform instead of a fragile one-off script.
 
 ---
 
@@ -240,7 +227,6 @@ Build complex pipelines with:
 | Stateful/stateless optimization | ✅ | ❌ | ❌ |
 | Reproducible by default | ✅ | ⚠️ (manual) | ✅ |
 | Scientific data focus | ✅ | ❌ | ❌ |
-| Learning curve | Medium | Low | High |
 
 **When to use sklearn**: Tabular data, classic ML problems, well-established workflows
 **When to use Kedro/ZenML**: Large-scale MLOps, multi-team production deployments
@@ -285,6 +271,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 ---
 
 ## Acknowledgments
+
+XDFlow grew out of research and engineering work by Julien Bloch and Joanna Chang, who worked closely together on the reusable scientific ML infrastructure behind the project. Julien shaped much of the core architecture, Joanna contributed substantially across development and research use cases, and Yash helped with the final push to prepare the project for open source release.
 
 Built on the shoulders of giants:
 - [xarray](https://xarray.dev/) - Labeled multidimensional arrays

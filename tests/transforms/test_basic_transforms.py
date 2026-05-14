@@ -1,6 +1,7 @@
 """Tests for basic transforms."""
 
 import numpy as np
+import pytest
 
 from xdflow.transforms.basic_transforms import (
     AverageTransform,
@@ -238,6 +239,11 @@ class TestSampleWeightTransform:
         weights = result.data.coords["sample_weight"].values
 
         assert np.allclose(weights, [1.0, 2.0, 4.0])
+
+    def test_transform_sel_rejected_with_policy_hint(self):
+        """Sample-weight transforms add coordinates, so partial write-back is unsafe."""
+        with pytest.raises(TypeError, match="does not support transform_sel"):
+            SampleWeightTransform(coord_name="session", transform_sel={"trial": [0, 1]})
 
 
 class TestBalanceClassWeightTransform:
