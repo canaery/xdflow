@@ -42,6 +42,9 @@ nav:
   - Tutorials:
       - tutorials/index.md
       - Basic Pipeline Walkthrough: tutorials/basic-pipeline.md
+      - Reusable ML Patterns: tutorials/reusable-ml-patterns.md
+  - Guides:
+      - Using XDFlow With LLMs: guides/llm.md
   - API Reference:
       - api/index.md
       - Core: api/core.md

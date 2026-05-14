@@ -94,8 +94,10 @@ class LGBMPredictor(SKLearnPredictor):
         proba: bool = False,
         is_classifier: bool | None = None,
         multi_output: bool = False,
+        is_multilabel: bool = False,
         sel: dict | None = None,
         drop_sel: dict | None = None,
+        sample_weight_coord: str | None = "sample_weight",
         **kwargs: Any,
     ):
         """Initialize LGBMPredictor with early stopping parameters."""
@@ -129,8 +131,10 @@ class LGBMPredictor(SKLearnPredictor):
             proba=proba,
             is_classifier=is_classifier,
             multi_output=multi_output,
+            is_multilabel=is_multilabel,
             sel=sel,
             drop_sel=drop_sel,
+            sample_weight_coord=sample_weight_coord,
             **kwargs,
         )
 
@@ -181,7 +185,7 @@ class LGBMPredictor(SKLearnPredictor):
             )
 
         # Extract sample weights if provided
-        sample_weight = self._extract_sample_weight(data, sample_index)
+        sample_weight = self._extract_sample_weights(data, sample_index)
 
         # Split into train/validation sets
         split_kwargs = {

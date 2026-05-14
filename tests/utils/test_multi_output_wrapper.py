@@ -4,7 +4,7 @@ import pickle
 
 from sklearn.linear_model import Ridge
 
-from xdflow.transforms.multi_output_wrapper import MultiOutputEstimatorFactory
+from xdflow.transforms.multi_output_wrapper import MultiOutputClassifierFactory, MultiOutputEstimatorFactory
 
 
 def test_multi_output_factory_pickles():
@@ -13,3 +13,13 @@ def test_multi_output_factory_pickles():
     restored = pickle.loads(blob)
     assert callable(restored)
     assert restored.base_estimator_cls is Ridge
+
+
+def test_multi_output_classifier_factory_pickles():
+    from sklearn.linear_model import LogisticRegression
+
+    factory = MultiOutputClassifierFactory(LogisticRegression)
+    blob = pickle.dumps(factory)
+    restored = pickle.loads(blob)
+    assert callable(restored)
+    assert restored.base_estimator_cls is LogisticRegression

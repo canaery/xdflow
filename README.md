@@ -50,11 +50,14 @@ If you work with scientific data, you've probably hit these walls:
 - ✅ **First-class metadata** propagation through every step
 - ✅ **Flexible composition** patterns (sequential, parallel, conditional, per-group)
 - ✅ **Native xarray integration** with seamless sklearn interop
+- ✅ **Multi-output and few-shot transfer workflows** for scientific ML
 - ✅ **Experiment tracking** with MLflow out of the box
 
 ---
 
 ## Quick Example
+
+This example uses `MultiTaperTransform`, so install `xdflow[spectral]` or `xdflow[all]` before running it.
 
 ```python
 import xdflow as xf
@@ -183,8 +186,14 @@ Build complex pipelines with:
 
 ### 5. **Multi-Output Support**
 - Native multi-target regression (predict multiple outputs simultaneously)
+- Multilabel classification with sklearn-compatible estimators
 - Proper handling of sample weights
 - Classification and regression in unified interface
+
+### 6. **LLM-Friendly API Contracts**
+- Small transform and pipeline contracts that are easy to implement and review
+- Clear separation between scientific computation, orchestration, and evaluation
+- A scaffold for having LLMs write focused transforms instead of fragile one-off scripts
 
 ---
 
@@ -237,6 +246,7 @@ Build complex pipelines with:
 - [Installation & Setup](docs/installation.md)
 - [Core Concepts](docs/concepts/index.md)
 - [Tutorials](docs/tutorials/index.md)
+- [Using XDFlow With LLMs](docs/guides/llm.md)
 - [API Reference](docs/api/index.md)
 
 ---

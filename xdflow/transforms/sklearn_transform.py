@@ -1,12 +1,14 @@
 import inspect
 import warnings
 from inspect import Parameter, signature
-from typing import Any, Self
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import xarray as xr
-from sklearn.base import BaseEstimator, is_regressor
+from sklearn.base import BaseEstimator
+from sklearn.base import is_classifier as sklearn_is_classifier
+from sklearn.base import is_regressor as sklearn_is_regressor
 from sklearn.preprocessing import LabelEncoder
 
 from xdflow.core.base import Predictor, SampleWeightMixin, Transform
@@ -130,25 +132,31 @@ class SKLearnTransform(Transform, SampleWeightMixin):
             self._resolved_target_coords = resolved_targets
             y = extract_target_array(resolved_targets, data, validate=False)
 
-            # Check if we need to wrap in MultiOutputRegressor for patterns that resolved to multiple targets
+            # Check if we need to wrap in a multi-output wrapper for patterns that resolved
+            # to multiple targets. Pattern-based target specs are resolved only at fit time.
             if (
                 hasattr(self, "multi_output")
                 and not self.multi_output  # Not already wrapped (only for Predictors)
                 and hasattr(self, "is_classifier")
-                and not self.is_classifier  # Only for regressors
                 and len(resolved_targets) > 1  # Pattern resolved to multiple targets
                 and isinstance(self.target_coord, str)
                 and "*" in self.target_coord  # Was a pattern
                 and hasattr(self, "_base_estimator_cls")
                 and inspect.isclass(self._base_estimator_cls)  # Skip lambdas/callables
             ):
-                # Need to wrap the estimator in MultiOutputRegressor
-                from xdflow.transforms.multi_output_wrapper import MultiOutputEstimatorFactory
+                from xdflow.transforms.multi_output_wrapper import (
+                    MultiOutputClassifierFactory,
+                    MultiOutputRegressorFactory,
+                )
 
-                # Re-create estimator with wrapping
-                estimator_cls = MultiOutputEstimatorFactory(self._base_estimator_cls)
-                self.estimator = estimator_cls(**self._estimator_kwargs)
-                self.multi_output = True
+                if getattr(self, "is_multilabel", False):
+                    estimator_cls = MultiOutputClassifierFactory(self._base_estimator_cls)
+                    self.estimator = estimator_cls(**self._estimator_kwargs)
+                    self.multi_output = True
+                elif not self.is_classifier:
+                    estimator_cls = MultiOutputRegressorFactory(self._base_estimator_cls)
+                    self.estimator = estimator_cls(**self._estimator_kwargs)
+                    self.multi_output = True
 
         # If supervised, delegate any encoding decisions to Predictor upstream
         fit_kwargs = self._build_fit_kwargs(data, sample_index)
@@ -231,35 +239,21 @@ class SKLearnTransform(Transform, SampleWeightMixin):
             return super().__hasattr__(name)
         return hasattr(self.estimator, name) or super().__hasattr__(name)
 
-    def clone(self) -> Self:
-        """Return a fresh instance with the same constructor parameters.
-
-        Same as base class, but also includes parameters from the estimator.
-        """
-        ctor = signature(type(self).__init__)
-        ctor_param_names = {
-            name
-            for name, p in ctor.parameters.items()
-            if name != "self" and p.kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY)
-        }
-        raw_params = self.get_params(deep=False) or {}
-        filtered_params = {k: v for k, v in raw_params.items() if k in ctor_param_names}
+    def _get_clone_kwargs(self) -> dict[str, Any]:
+        """Include estimator parameters in clone kwargs."""
+        filtered_params = super()._get_clone_kwargs()
 
         # For SKLearnPredictor with multi_output, use the base estimator class
         if hasattr(self, "_base_estimator_cls") and hasattr(self, "multi_output"):
             filtered_params["estimator_cls"] = self._base_estimator_cls
 
-        # combine filtered_params and estimator_params
-        estimator_params = self._estimator_kwargs
-        combined_params = {**filtered_params, **estimator_params}
-
-        return type(self)(**combined_params)
+        return {**filtered_params, **self._estimator_kwargs}
 
     def _build_fit_kwargs(self, data: xr.DataArray, sample_index: pd.Index) -> dict[str, Any]:
         """Collect optional keyword arguments to forward to estimator.fit."""
         fit_kwargs: dict[str, Any] = {}
 
-        sample_weight = self._extract_sample_weight(data, sample_index)
+        sample_weight = self._extract_sample_weights(data, sample_index)
         if sample_weight is not None:
             if self._supports_fit_param("sample_weight"):
                 fit_kwargs["sample_weight"] = sample_weight
@@ -289,7 +283,7 @@ class SKLearnTransform(Transform, SampleWeightMixin):
                 self._fit_param_support_cache[param_name] = accepts
         return self._fit_param_support_cache[param_name]
 
-    # _extract_sample_weight is now inherited from SampleWeightMixin
+    # _extract_sample_weights is inherited from SampleWeightMixin
 
 
 class SKLearnTransformer(SKLearnTransform):
@@ -388,6 +382,7 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
         proba: bool = False,
         is_classifier: bool | None = None,
         multi_output: bool = False,
+        is_multilabel: bool = False,
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
         sample_weight_coord: str | None = "sample_weight",
@@ -405,7 +400,7 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
                 - A single coordinate name (e.g., 'oil_dilution')
                 - A list of coordinate names (e.g., ['stim_0_concentration', 'stim_1_concentration'])
                 - A pattern with wildcards (e.g., '*_concentration' to auto-discover all concentration targets)
-                Multi-target regression is only supported for regressors.
+                Multi-target classification requires is_multilabel=True.
             encoder (LabelEncoder): The encoder to use for the predictor. Should be set before predict or transform.
                 Only valid for classifiers.
             proba (bool): Whether to call the estimator's `.predict_proba()` method for transform.
@@ -413,11 +408,13 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
             is_classifier (bool, optional): Manually specify if this is a classifier (True) or regressor (False).
                 If None, auto-detects based on estimator's _estimator_type attribute.
             multi_output (bool): If True, automatically wraps the estimator in MultiOutputRegressor
-                for multi-target regression. Only valid for regressors. Default: False.
+                for regressors or MultiOutputClassifier for multilabel classifiers. Default: False.
 
                 When multi_output=True, access the underlying estimators via:
                 - predictor.estimator.estimator: The base estimator (e.g., LGBMRegressor)
                 - predictor.estimator.estimators_: List of fitted estimators (one per target)
+            is_multilabel (bool): Whether targets are multiple binary target coordinates. Requires
+                is_classifier=True and uses no LabelEncoder.
             sample_weight_coord (str, optional): The name of the coordinate containing the sample weights.
                 Default: "sample_weight".
             **kwargs (Any): All other keyword arguments are passed to the estimator constructor.
@@ -429,73 +426,60 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
         # Store the original estimator class before potential wrapping
         self._base_estimator_cls = estimator_cls
 
-        # Auto-enable multi_output for regressors when multiple targets are requested
-        estimator_type_hint = getattr(estimator_cls, "_estimator_type", None)
+        _base_instance = estimator_cls(**self._estimator_kwargs)
 
-        # Auto-enable MultiOutputRegressor when the target spec clearly implies multiple targets.
-        # Guardrails:
-        #   - Respect explicit multi_output flag (do nothing if user already set it).
-        #   - Never auto-enable for classifiers (explicit or inferred).
-        #   - Only act on estimator classes; lambdas/callables may already wrap MultiOutputRegressor.
-        #   - Only trigger when the target spec is a list/tuple with >1 items.
-        #   - For patterns (with *), defer the decision until fit() when we can resolve the pattern.
-        auto_enable_multi_output = (
-            not multi_output
-            and is_classifier is not True
-            and estimator_type_hint != "classifier"
-            and inspect.isclass(estimator_cls)
-            and isinstance(target_coord, (list, tuple))
-            and len(target_coord) > 1
-        )
-        if auto_enable_multi_output:
+        # Auto-detect or use manual override before deciding on multi-output wrapping.
+        if is_classifier is None:
+            if is_multilabel:
+                is_classifier = True
+            elif sklearn_is_classifier(_base_instance):
+                is_classifier = True
+            elif sklearn_is_regressor(_base_instance):
+                is_classifier = False
+            else:
+                raise ValueError(
+                    f"Could not auto-detect task type for {self._base_estimator_cls.__name__}. "
+                    "Please explicitly specify is_classifier=True or is_classifier=False."
+                )
+
+        has_multiple_targets = isinstance(target_coord, (list, tuple)) and len(target_coord) > 1
+        supports_multi_output_task = (not is_classifier) or is_multilabel
+        if not multi_output and inspect.isclass(estimator_cls) and has_multiple_targets and supports_multi_output_task:
             multi_output = True
 
         self.multi_output = multi_output
 
-        # Wrap in MultiOutputRegressor if requested
         if multi_output:
-            from sklearn.multioutput import MultiOutputRegressor
+            from sklearn.multioutput import MultiOutputClassifier, MultiOutputRegressor
 
-            from xdflow.transforms.multi_output_wrapper import MultiOutputEstimatorFactory
+            from xdflow.transforms.multi_output_wrapper import (
+                MultiOutputClassifierFactory,
+                MultiOutputRegressorFactory,
+            )
 
-            _already_multioutput = estimator_cls is MultiOutputRegressor or isinstance(
-                estimator_cls, MultiOutputEstimatorFactory
+            _already_multioutput = estimator_cls in (MultiOutputRegressor, MultiOutputClassifier) or isinstance(
+                estimator_cls, (MultiOutputRegressorFactory, MultiOutputClassifierFactory)
             )
             if not _already_multioutput:
-                # Create a wrapper that preserves the original class for inspection
-                _original_cls = estimator_cls
-                estimator_cls = MultiOutputEstimatorFactory(_original_cls)
-                wrapped_name = _original_cls.__name__
-            else:
-                wrapped_name = getattr(estimator_cls, "__name__", str(estimator_cls))
+                original_cls = estimator_cls
+                factory = MultiOutputClassifierFactory if is_multilabel else MultiOutputRegressorFactory
+                estimator_cls = factory(original_cls)
+                if kwargs.get("verbose", False):
+                    print(
+                        f"[SKLearnPredictor] Wrapping {original_cls.__name__} with "
+                        f"{'MultiOutputClassifier' if is_multilabel else 'MultiOutputRegressor'} "
+                        "for multi-target prediction"
+                    )
 
-            # Log the wrapping for debugging
-            if kwargs.get("verbose", False):
-                print(
-                    f"[SKLearnPredictor] Wrapping {wrapped_name} with MultiOutputRegressor for multi-target regression"
-                )
-
-        # Initialize the estimator to inspect its type
-        if multi_output:
-            # For multi-output, create a base instance to inspect type
             _estimator_instance = estimator_cls(**self._estimator_kwargs)
-            # Store the actual base estimator type info
-            _base_instance = self._base_estimator_cls(**self._estimator_kwargs)
-            _estimator_type_source = _base_instance
         else:
-            _estimator_instance = estimator_cls(**self._estimator_kwargs)
-            _estimator_type_source = _estimator_instance
+            _estimator_instance = _base_instance
 
-        # Auto-detect or use manual override
-        if is_classifier is None:
-            try:
-                is_classifier = not is_regressor(_estimator_type_source)
-            except Exception as exc:
-                raise ValueError(
-                    f"Could not auto-detect task type for {self._base_estimator_cls.__name__}. "
-                    f"Type cannot be determined with sklearn.base.is_regressor."
-                    f"Please explicitly specify is_classifier=True or is_classifier=False."
-                ) from exc
+        if multi_output and is_classifier and not is_multilabel:
+            raise ValueError(
+                "multi_output=True with is_classifier=True requires is_multilabel=True. "
+                "Multi-output classification is only supported in multilabel mode."
+            )
 
         if proba and not hasattr(_estimator_instance, "predict_proba"):
             raise AttributeError(
@@ -510,6 +494,7 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
             target_coord=target_coord,
             encoder=encoder,
             is_classifier=is_classifier,
+            is_multilabel=is_multilabel,
             proba=proba,
             sel=sel,
             drop_sel=drop_sel,
@@ -534,14 +519,23 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
 
         Returns:
             Tuple[np.ndarray, np.ndarray]:
-                - probabilities: Array of shape (n_samples, n_classes)
-                - class_labels: Array of shape (n_classes,)
+                - probabilities: For single-label, shape (n_samples, n_classes). For multilabel,
+                  shape (n_samples, n_targets) with positive-class probabilities.
+                - class_labels: Single-label estimator classes, or target indices for multilabel.
         """
         if not hasattr(self.estimator, "predict_proba"):
             raise AttributeError(f"Estimator '{self.estimator.__class__.__name__}' has no method 'predict_proba'.")
         X, _ = self._prepare_data(data)
-        probabilities = self.estimator.predict_proba(X)
-        return probabilities, self.estimator.classes_
+        raw_probabilities = self.estimator.predict_proba(X)
+
+        if self.is_multilabel:
+            if isinstance(raw_probabilities, list):
+                probabilities = np.column_stack([p[:, 1] if p.shape[1] == 2 else p[:, -1] for p in raw_probabilities])
+            else:
+                probabilities = raw_probabilities
+            return probabilities, np.arange(probabilities.shape[1])
+
+        return raw_probabilities, self.estimator.classes_
 
     def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
         """
@@ -551,7 +545,9 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
         if len(input_dims) != 2:
             raise ValueError(f"Expected 2 input dimensions, but got {len(input_dims)}")
 
-        if self.proba:
+        if self.proba and not self.is_multilabel:
             return (self.sample_dim, "class")
+        elif self.is_multi_target or self.is_multilabel:
+            return (self.sample_dim, "target")
         else:
             return (self.sample_dim, "prediction")

@@ -34,6 +34,10 @@ def _configure_transform_for_inference(
         except AttributeError:
             pass
 
+    disable_for_inference = getattr(transform, "_disable_for_inference", None)
+    if callable(disable_for_inference):
+        disable_for_inference()
+
     if set_n_jobs_single and hasattr(transform, "n_jobs"):
         try:
             transform.n_jobs = 1

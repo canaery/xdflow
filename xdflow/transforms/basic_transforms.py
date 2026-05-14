@@ -148,7 +148,7 @@ class SampleWeightTransform(Transform):
     is_stateful: bool = False
     input_dims: tuple[str, ...] = ()
     output_dims: tuple[str, ...] = ()
-    _supports_transform_sel: bool = True
+    _supports_transform_sel: bool = False
 
     def __init__(
         self,
@@ -179,6 +179,7 @@ class SampleWeightTransform(Transform):
         self.default_weight = float(default_weight)
         self.target_coord = target_coord
         self.dtype = dtype
+        self._active_for_inference = True
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         params = super().get_params(deep=deep)
@@ -217,6 +218,9 @@ class SampleWeightTransform(Transform):
         return self
 
     def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
+        if not self._active_for_inference:
+            return container
+
         data = container.data
         if self.coord_name not in data.coords:
             raise ValueError(f"Coordinate '{self.coord_name}' not found in DataArray.")
@@ -253,6 +257,176 @@ class SampleWeightTransform(Transform):
             )
 
         weight_coord = source_coord.copy(data=weights_array)
+        weight_coord.name = self.target_coord
+        updated = data.assign_coords({self.target_coord: weight_coord})
+
+        return DataContainer(updated)
+
+    def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
+        return input_dims
+
+    def _disable_for_inference(self) -> None:
+        self._active_for_inference = False
+
+
+class BalanceClassWeightTransform(Transform):
+    """Attach a sample-weight coordinate that balances classes, optionally by domain."""
+
+    is_stateful: bool = False
+    input_dims: tuple[str, ...] = ()
+    output_dims: tuple[str, ...] = ()
+    _supports_transform_sel: bool = False
+
+    def __init__(
+        self,
+        class_coord: str,
+        balance_domains: bool = False,
+        domain_coord: str | None = None,
+        domain_weights: Mapping[Any, float] | None = None,
+        normalize_domain_totals: bool = False,
+        weight_normalize: str | None = None,
+        target_coord: str = "sample_weight",
+        dtype: np.dtype | type = np.float64,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
+    ):
+        if weight_normalize is not None and weight_normalize not in {"mean", "sum"}:
+            raise ValueError("weight_normalize must be one of: None, 'mean', or 'sum'.")
+        if not balance_domains:
+            if domain_coord is not None:
+                raise ValueError("Specify 'domain_coord' only when balance_domains=True.")
+            if domain_weights is not None:
+                raise ValueError("Specify 'domain_weights' only when balance_domains=True.")
+            if normalize_domain_totals:
+                raise ValueError("Specify 'normalize_domain_totals' only when balance_domains=True.")
+        elif domain_coord is None:
+            raise ValueError("domain_coord is required when balance_domains=True.")
+
+        super().__init__(sel=sel, drop_sel=drop_sel)
+        self.class_coord = class_coord
+        self.balance_domains = balance_domains
+        self.domain_coord = domain_coord
+        self.domain_weights = {key: float(value) for key, value in domain_weights.items()} if domain_weights else None
+        self.normalize_domain_totals = normalize_domain_totals
+        self.weight_normalize = weight_normalize
+        self.target_coord = target_coord
+        self.dtype = dtype
+
+    @staticmethod
+    def _safe_key(value: Any) -> Any:
+        if hasattr(value, "item"):
+            return value.item()
+        return value
+
+    def _resolve_domain_weights(self, domain_values: np.ndarray) -> dict[Any, float]:
+        if self.domain_weights is not None:
+            weights = dict(self.domain_weights)
+        else:
+            if len(domain_values) == 0:
+                raise ValueError("No domain values found; cannot compute weights.")
+            equal_weight = 1.0 / float(len(domain_values))
+            weights = {value: equal_weight for value in domain_values}
+
+        weights = {self._safe_key(key): float(value) for key, value in weights.items()}
+        domain_keys = [self._safe_key(value) for value in domain_values]
+        missing = [value for value in domain_keys if value not in weights]
+        if missing:
+            raise ValueError(f"Domain weight(s) missing for: {missing}")
+
+        return weights
+
+    def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
+        data = container.data
+        if self.class_coord not in data.coords:
+            raise ValueError(f"Coordinate '{self.class_coord}' not found in DataArray.")
+
+        class_coord = data.coords[self.class_coord]
+        if class_coord.ndim != 1:
+            raise ValueError("Class coordinate must be 1D for sample-weight computation.")
+
+        classes = np.asarray(class_coord.values)
+        if pd.isna(classes).any():
+            raise ValueError("Class coordinate contains missing values (NaN/None).")
+
+        if not self.balance_domains:
+            class_values, class_counts = np.unique(classes, return_counts=True)
+            class_count_map = {
+                self._safe_key(class_value): int(class_count)
+                for class_value, class_count in zip(class_values, class_counts, strict=True)
+            }
+            weights = np.array([1.0 / class_count_map[self._safe_key(value)] for value in classes], dtype=np.float64)
+            weight_coord_template = class_coord
+        else:
+            if self.domain_coord not in data.coords:
+                raise ValueError(f"Coordinate '{self.domain_coord}' not found in DataArray.")
+
+            domain_coord = data.coords[self.domain_coord]
+            if class_coord.dims != domain_coord.dims:
+                raise ValueError(
+                    f"Class coord dims {class_coord.dims} must match domain coord dims {domain_coord.dims}."
+                )
+            if domain_coord.ndim != 1:
+                raise ValueError("Domain coordinate must be 1D for sample-weight computation.")
+
+            domains = np.asarray(domain_coord.values)
+            if pd.isna(domains).any():
+                raise ValueError("Domain coordinate contains missing values (NaN/None).")
+
+            unique_domains = np.unique(domains)
+            domain_weights = self._resolve_domain_weights(unique_domains)
+            weights = np.zeros_like(domains, dtype=np.float64)
+
+            for domain in unique_domains:
+                domain_key = self._safe_key(domain)
+                domain_mask = domains == domain
+                domain_count = int(np.sum(domain_mask))
+                if domain_count == 0:
+                    continue
+
+                domain_classes = classes[domain_mask]
+                class_values, class_counts = np.unique(domain_classes, return_counts=True)
+                if len(class_values) == 0:
+                    continue
+
+                class_count_map = {
+                    self._safe_key(class_value): int(class_count)
+                    for class_value, class_count in zip(class_values, class_counts, strict=True)
+                }
+
+                if self.normalize_domain_totals:
+                    base = domain_weights[domain_key] / float(len(class_values))
+                else:
+                    base = domain_weights[domain_key] / float(domain_count)
+
+                counts = np.array(
+                    [class_count_map[self._safe_key(value)] for value in domain_classes], dtype=np.float64
+                )
+                weights[domain_mask] = base / counts
+            weight_coord_template = domain_coord
+
+        try:
+            weights_array = np.asarray(weights, dtype=self.dtype)
+        except TypeError as exc:
+            raise TypeError(f"Could not convert computed weights to dtype '{self.dtype}'.") from exc
+
+        if self.weight_normalize == "mean":
+            mean_weight = float(np.mean(weights_array))
+            if mean_weight <= 0:
+                raise ValueError("Cannot normalize weights by mean when mean <= 0.")
+            weights_array = weights_array / mean_weight
+        elif self.weight_normalize == "sum":
+            total_weight = float(np.sum(weights_array))
+            if total_weight <= 0:
+                raise ValueError("Cannot normalize weights by sum when sum <= 0.")
+            weights_array = weights_array / total_weight
+
+        if weights_array.shape != weight_coord_template.shape:
+            raise ValueError(
+                "Computed weights must match the shape of the template coordinate "
+                f"(expected {weight_coord_template.shape}, got {weights_array.shape})."
+            )
+
+        weight_coord = weight_coord_template.copy(data=weights_array)
         weight_coord.name = self.target_coord
         updated = data.assign_coords({self.target_coord: weight_coord})
 
@@ -571,12 +745,14 @@ class TrialSampler(Transform):
         self,
         n_trials: int,
         shuffle: bool = True,
+        random_state: int = 0,
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.n_trials = n_trials
         self.shuffle = shuffle
+        self.random_state = random_state
 
     def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
         """
@@ -594,7 +770,8 @@ class TrialSampler(Transform):
 
         trial_indices = np.arange(num_trials)
         if self.shuffle:
-            np.random.shuffle(trial_indices)
+            rng = np.random.default_rng(self.random_state)
+            rng.shuffle(trial_indices)
 
         sampled_indices = trial_indices[: self.n_trials]
         sampled_data = data.isel(trial=sampled_indices)

@@ -14,6 +14,7 @@ import xarray as xr
 from sklearn.preprocessing import LabelEncoder
 
 from xdflow.core.data_container import DataContainer
+from xdflow.utils.sample_weights import extract_sample_weights
 
 
 def _infer_dict_key_type(dict_obj: dict[Any, Any], raw_key: str) -> Any:
@@ -412,10 +413,25 @@ class Transform(ABC):
     def clone(self) -> Self:
         """Return a fresh instance with the same constructor parameters.
 
-        Default implementation constructs a new instance from the filtered
-        constructor signature using public parameters. Composite transforms
-        should override this to clone children appropriately.
+        Subclasses that need to preserve constructor kwargs not surfaced by
+        ``get_params`` should override ``_get_clone_kwargs()`` instead of
+        overriding this method.
         """
+        filtered_params = self._get_clone_kwargs()
+
+        ctor = signature(type(self).__init__)
+        ctor_param_names = {
+            name
+            for name, p in ctor.parameters.items()
+            if name != "self" and p.kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY)
+        }
+        missing = ctor_param_names - filtered_params.keys()
+        assert not missing, f"Clone kwargs missing constructor parameters for {self.__class__.__name__}: {missing}"
+
+        return type(self)(**filtered_params)
+
+    def _get_clone_kwargs(self) -> dict[str, Any]:
+        """Return constructor keyword arguments for cloning."""
         ctor = signature(type(self).__init__)
         ctor_param_names = {
             name
@@ -424,15 +440,7 @@ class Transform(ABC):
         }
         raw_params = self.get_params(deep=False) or {}
 
-        filtered_params = {}
-        for ctor_param_name in ctor_param_names:
-            # all constructor parameters must be present in the raw params
-            assert ctor_param_name in raw_params, (
-                f"Constructor parameter {ctor_param_name} not found as parameter in {self.__class__.__name__}."
-            )
-            filtered_params[ctor_param_name] = raw_params[ctor_param_name]
-
-        return type(self)(**filtered_params)
+        return {k: v for k, v in raw_params.items() if k in ctor_param_names}
 
     def set_params(self, **params: Any) -> "Transform":
         """
@@ -487,7 +495,7 @@ class Predictor(Transform, ABC):
     is_stateful: bool = True  # All predictors require training
     allow_unknown_targets: bool = True  # Whether to allow unknown target values that were not seen during fitting.
     unknown_target_encoding: int = -1
-    _cooperative_init_kwarg_names = {"allow_unknown_targets", "unknown_target_encoding"}
+    _cooperative_init_kwarg_names = {"allow_unknown_targets", "unknown_target_encoding", "is_multilabel"}
 
     def __init__(
         self,
@@ -496,10 +504,12 @@ class Predictor(Transform, ABC):
         is_classifier: bool,
         encoder: LabelEncoder | None = None,
         proba: bool = False,
+        is_multilabel: bool = False,
         sel: dict | None = None,
         drop_sel: dict | None = None,
         transform_sel: dict | None = None,
         transform_drop_sel: dict | None = None,
+        calibrated_thresholds: np.ndarray | list[float] | None = None,
         **kwargs,
     ):
         """
@@ -509,13 +519,23 @@ class Predictor(Transform, ABC):
             is_classifier: Whether the estimator is a classifier (True) or regressor (False).
             encoder: The encoder to use for the predictor. Should be set before predict or transform.
             proba: Whether to return the prediction as probabilities (trials, stimuli) or as a single encoding (trials)
+            is_multilabel: Whether this is a multilabel classification task. When True, target_coord resolves
+                to one binary coordinate per output and no LabelEncoder is used.
             sel: A dictionary to select a subset of data.
             drop_sel: A dictionary to drop a subset of data.
             transform_sel: A dictionary to select a subset of data for transformation.
             transform_drop_sel: A dictionary to drop a subset of data for transformation.
+            calibrated_thresholds: Optional multilabel decision thresholds, one per output.
         """
         allow_unknown_targets = kwargs.pop("allow_unknown_targets", self.allow_unknown_targets)
         unknown_target_encoding = kwargs.pop("unknown_target_encoding", self.unknown_target_encoding)
+        is_multilabel = kwargs.pop("is_multilabel", is_multilabel)
+
+        if is_multilabel and not is_classifier:
+            raise ValueError(
+                f"{self.__class__.__name__} initialized with is_multilabel=True but is_classifier=False. "
+                "Multilabel mode requires is_classifier=True."
+            )
 
         # Check if target_coord is explicitly a list (not a pattern string)
         is_multi_target = isinstance(target_coord, list)
@@ -539,12 +559,19 @@ class Predictor(Transform, ABC):
                     f"{self.__class__.__name__} initialized with is_classifier=False but an encoder was provided. "
                     "Encoders are only valid for classifiers."
                 )
+        elif is_multilabel:
+            if encoder is not None:
+                raise ValueError(
+                    f"{self.__class__.__name__} initialized with is_multilabel=True but an encoder was provided. "
+                    "Multilabel classifiers use binary target coordinates and do not need an encoder."
+                )
         else:
-            # For classifiers, multi-target is not supported
+            # For single-label classifiers, multi-target is not supported
             if is_multi_target:
                 raise ValueError(
                     f"{self.__class__.__name__} initialized with is_classifier=True and multiple target_coord. "
-                    "Multi-target prediction is only supported for regressors."
+                    "Multi-target prediction is only supported for regressors or multilabel classifiers "
+                    "(set is_multilabel=True)."
                 )
             # For classifiers, always ensure an encoder exists to standardize label handling.
             if encoder is None:
@@ -564,8 +591,13 @@ class Predictor(Transform, ABC):
         self.target_coord_list = target_coord_list  # Normalized to list
         self.is_multi_target = is_multi_target
         self.is_classifier = is_classifier
+        self.is_multilabel = is_multilabel
         self.encoder = encoder
         self.proba = proba
+        self.calibrated_thresholds = calibrated_thresholds
+        self.calibrated_thresholds_ = (
+            None if calibrated_thresholds is None else np.asarray(calibrated_thresholds, dtype=float)
+        )
         self._is_fitted = False
 
     # get_expected_output_dims is still abstract and must be implemented by subclasses
@@ -583,6 +615,9 @@ class Predictor(Transform, ABC):
         """
         if not self.is_classifier:
             raise TypeError(f"{self.__class__.__name__} is configured as a regressor; labels are undefined.")
+
+        if self.is_multilabel:
+            return self.target_coord_list
 
         if self.encoder is None:
             raise RuntimeError(
@@ -747,8 +782,8 @@ class Predictor(Transform, ABC):
         if effective_transform_sel and self.supports_transform_sel:
             container = container.sel(**effective_transform_sel)
 
-        # Encode the target coordinate if a classifier
-        if self.is_classifier:
+        # Encode the target coordinate if a single-label classifier.
+        if self.is_classifier and not self.is_multilabel:
             # Fit encoder if not yet fitted
             if not hasattr(self.encoder, "classes_"):
                 self.fit_and_set_encoder(container.data)
@@ -802,8 +837,8 @@ class Predictor(Transform, ABC):
         # Default fit container is the selected view; classifiers override with encoded targets
         container_for_fit = selected_container
 
-        # Prepare data for fit: encode labels for supervised classifierss
-        if self.is_classifier:
+        # Prepare data for fit: encode labels for single-label classifiers.
+        if self.is_classifier and not self.is_multilabel:
             # Fit encoder if not fitted
             if not hasattr(self.encoder, "classes_"):
                 self.fit_and_set_encoder(selected_container.data)
@@ -935,8 +970,8 @@ class Predictor(Transform, ABC):
         if verbose:
             print(f"Starting {self.__class__.__name__}._fit_from_encoded")
 
-        if not self.is_classifier:
-            # For regressors, same as normal fit without special handling
+        if not self.is_classifier or self.is_multilabel:
+            # Regressors and multilabel classifiers use the normal, unencoded target path.
             return self.fit(container, **kwargs)
 
         # Ensure encoder is available; when called from a composite, the encoder
@@ -975,7 +1010,7 @@ class Predictor(Transform, ABC):
             output_dims = [self.sample_dim]
         elif predictions.ndim == 2:
             # Multi-target - predictions shape is (n_samples, n_targets)
-            if not self.is_multi_target:
+            if not self.is_multi_target and not self.is_multilabel:
                 raise ValueError(
                     f"Predictor returned 2D predictions but was initialized with single target_coord. "
                     f"Got prediction shape {predictions.shape}"
@@ -987,7 +1022,7 @@ class Predictor(Transform, ABC):
             )
 
         # Decode predictions and restore original target coord for output coords
-        if self.is_classifier:
+        if self.is_classifier and not self.is_multilabel:
             if self.encoder is None:
                 raise ValueError(
                     f"{self.__class__.__name__}._predict_from_encoded requires an encoder for classifiers."
@@ -997,7 +1032,7 @@ class Predictor(Transform, ABC):
 
         output_coords = self._get_output_coords(data)
 
-        # Add target coordinate for multi-target predictions
+        # Add target coordinate for multi-target or multilabel predictions
         if predictions.ndim == 2:
             output_coords["target"] = self.target_coord_list
 
@@ -1025,21 +1060,24 @@ class Predictor(Transform, ABC):
             raise AttributeError(
                 f"'{self.__class__.__name__}' has not been instantiated as a classifier (is_classifier=False) so should not call the 'predict_proba' method."
             )
-        if self.encoder is None:
-            raise ValueError(
-                f"{self.__class__.__name__}._predict_proba_from_encoded requires an encoder for classifiers."
-            )
-
         data = container.data
         probs, class_labels = self._predict_proba(data, **kwargs)
-        probs = self._align_proba_to_global(probs, class_labels)
+        if self.is_multilabel:
+            output_coords = self._get_output_coords(data)
+            output_coords["target"] = self.target_coord_list
+            output_da = xr.DataArray(probs, dims=(self.sample_dim, "target"), coords=output_coords, attrs=data.attrs)
+        else:
+            if self.encoder is None:
+                raise ValueError(
+                    f"{self.__class__.__name__}._predict_proba_from_encoded requires an encoder for classifiers."
+                )
+            probs = self._align_proba_to_global(probs, class_labels)
 
-        # Restore original target coord for output coords
-        data = self._reset_target_coord(data)
-        output_coords = self._get_output_coords(data)
-        output_coords["class"] = self.encoder.classes_
-
-        output_da = xr.DataArray(probs, dims=(self.sample_dim, "class"), coords=output_coords, attrs=data.attrs)
+            # Restore original target coord for output coords
+            data = self._reset_target_coord(data)
+            output_coords = self._get_output_coords(data)
+            output_coords["class"] = self.encoder.classes_
+            output_da = xr.DataArray(probs, dims=(self.sample_dim, "class"), coords=output_coords, attrs=data.attrs)
         return DataContainer(output_da)
 
     def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
@@ -1059,10 +1097,10 @@ class Predictor(Transform, ABC):
                 If proba is False, the output will have shape (n_trials, n_targets).
         """
         data = container.data
-        if self.is_classifier:
+        if self.is_classifier and not self.is_multilabel:
             data = self._encode_target_coord(data)  # already handles ValueError if encoder is not fitted
 
-        if self.proba:  # only for classifiers, checked in __init__
+        if self.proba and not self.is_multilabel:  # only for single-label classifiers, checked in __init__
             # Use the core _predict_proba logic to get raw probabilities
             probabilities, class_labels = self._predict_proba(data, **kwargs)
 
@@ -1073,10 +1111,10 @@ class Predictor(Transform, ABC):
         else:
             # Use the core _predict logic to get predictions
             predictions = self._predict(data, **kwargs)
-            if self.is_classifier:
+            if self.is_classifier and not self.is_multilabel:
                 predictions = self.encoder.inverse_transform(predictions)
 
-            # Handle both 1D (single target) and 2D (multi-target) predictions
+            # Handle both 1D (single target) and 2D (multi-target/multilabel) predictions
             if predictions.ndim == 1:
                 transformed_data = predictions[:, np.newaxis]  # Make 2D (n_samples, 1)
                 output_dim_name = "prediction"
@@ -1087,15 +1125,15 @@ class Predictor(Transform, ABC):
                 raise ValueError(f"Predictions must be 1D or 2D, got {predictions.ndim}D")
 
         # Set output coordinates
-        if self.is_classifier:
+        if self.is_classifier and not self.is_multilabel:
             data = self._reset_target_coord(data)
 
         output_coords = self._get_output_coords(data)
 
-        if self.proba:
+        if self.proba and not self.is_multilabel:
             output_coords[output_dim_name] = self.encoder.classes_
-        elif predictions.ndim == 2 and self.is_multi_target:
-            # Multi-target: use target coordinate names
+        elif predictions.ndim == 2 and (self.is_multi_target or self.is_multilabel):
+            # Multi-target/multilabel: use target coordinate names
             output_coords[output_dim_name] = self.target_coord_list
         else:
             # Single target or classifier
@@ -1126,18 +1164,31 @@ class Predictor(Transform, ABC):
         container = self._apply_selection(container)
         data = container.data
 
-        # Encode target_coord if classifier
-        if self.is_classifier:
+        # Encode target_coord if single-label classifier.
+        if self.is_classifier and not self.is_multilabel:
             data = self._encode_target_coord(data)
 
         # Make the prediction
-        predictions = self._predict(data, **kwargs)
+        if self.is_multilabel and getattr(self, "calibrated_thresholds_", None) is not None:
+            if type(self)._predict_proba is Predictor._predict_proba:
+                raise ValueError(
+                    f"{self.__class__.__name__} has calibrated_thresholds_ but does not implement predict_proba."
+                )
+            probabilities, _ = self._predict_proba(data, **kwargs)
+            thresholds = np.asarray(self.calibrated_thresholds_, dtype=float)
+            if thresholds.shape != (probabilities.shape[1],):
+                raise ValueError(
+                    f"calibrated_thresholds_ has shape {thresholds.shape}, expected ({probabilities.shape[1]},)."
+                )
+            predictions = (probabilities >= thresholds).astype(np.int8)
+        else:
+            predictions = self._predict(data, **kwargs)
 
         # Validate prediction shape: can be 1D (single target) or 2D (multi-target)
         if predictions.ndim == 1:
             output_dims = [self.sample_dim]
         elif predictions.ndim == 2:
-            if not self.is_multi_target:
+            if not self.is_multi_target and not self.is_multilabel:
                 raise ValueError(
                     f"Predictor returned 2D predictions but was initialized with single target_coord. "
                     f"Got prediction shape {predictions.shape}"
@@ -1149,14 +1200,14 @@ class Predictor(Transform, ABC):
             )
 
         # Inverse transform the prediction if encoded
-        if self.is_classifier:
+        if self.is_classifier and not self.is_multilabel:
             predictions = self.encoder.inverse_transform(predictions)
             data = self._reset_target_coord(data)
 
         # Set the coordinates
         output_coords = self._get_output_coords(data)
 
-        # Add target coordinate for multi-target predictions
+        # Add target coordinate for multi-target/multilabel predictions
         if predictions.ndim == 2:
             output_coords["target"] = self.target_coord_list
 
@@ -1192,24 +1243,29 @@ class Predictor(Transform, ABC):
         container = self._apply_selection(container)
         data = container.data
 
-        # Encode target_coord
-        data = self._encode_target_coord(data)
+        if self.is_multilabel:
+            probabilities, _ = self._predict_proba(data, **kwargs)
+            assert probabilities.ndim == 2, f"Probabilities should have 2 dimensions, but got {probabilities.ndim}"
+            output_coords = self._get_output_coords(data)
+            output_coords["target"] = self.target_coord_list
+            output_da = xr.DataArray(
+                probabilities, dims=(self.sample_dim, "target"), coords=output_coords, attrs=data.attrs
+            )
+            result = DataContainer(output_da)
+        else:
+            # Encode target_coord, predict, and align to global classes.
+            data = self._encode_target_coord(data)
+            probabilities, class_labels = self._predict_proba(data, **kwargs)
+            probabilities = self._align_proba_to_global(probabilities, class_labels)
+            assert probabilities.ndim == 2, f"Probabilities should have 2 dimensions, but got {probabilities.ndim}"
+            data = self._reset_target_coord(data)
+            output_coords = self._get_output_coords(data)
+            output_coords["class"] = self.encoder.classes_
 
-        # Make the prediction
-        probabilities, class_labels = self._predict_proba(data, **kwargs)
-
-        # Align to global classes
-        probabilities = self._align_proba_to_global(probabilities, class_labels)
-
-        assert probabilities.ndim == 2, f"Probabilities should have 2 dimensions, but got {probabilities.ndim}"
-
-        # Set the coordinates
-        data = self._reset_target_coord(data)
-        output_coords = self._get_output_coords(data)
-        output_coords["class"] = self.encoder.classes_
-
-        output_da = xr.DataArray(probabilities, dims=(self.sample_dim, "class"), coords=output_coords, attrs=data.attrs)
-        result = DataContainer(output_da)
+            output_da = xr.DataArray(
+                probabilities, dims=(self.sample_dim, "class"), coords=output_coords, attrs=data.attrs
+            )
+            result = DataContainer(output_da)
 
         if verbose:
             end_time = time.time()
@@ -1228,7 +1284,7 @@ class SampleWeightMixin:
 
     Any transform that wants to support sample weights can inherit this mixin to gain:
     - `sample_weight_coord` attribute for specifying the weight coordinate name
-    - `_extract_sample_weight()` method for reading and aligning weights from a DataArray
+    - `_extract_sample_weights()` method for reading and aligning weights from a DataArray
 
     The transform is then responsible for:
     - Checking if its underlying estimator/model supports sample weights
@@ -1242,7 +1298,7 @@ class SampleWeightMixin:
 
             def _fit(self, container: DataContainer, **kwargs):
                 X, sample_index = self._prepare_data(container.data)
-                weights = self._extract_sample_weight(container.data, sample_index)
+                weights = self._extract_sample_weights(container.data, sample_index)
                 if weights is not None:
                     self.model.fit(X, sample_weight=weights)
                 else:
@@ -1251,7 +1307,7 @@ class SampleWeightMixin:
 
     sample_weight_coord: str | None = None
 
-    def _extract_sample_weight(self, data: xr.DataArray, sample_index: pd.Index) -> np.ndarray | None:
+    def _extract_sample_weights(self, data: xr.DataArray, sample_index: pd.Index) -> np.ndarray | None:
         """
         Read and align sample weights from the configured coordinate, if present.
 
@@ -1266,41 +1322,9 @@ class SampleWeightMixin:
             ValueError: If weight coordinate is misconfigured or contains invalid data
         """
         coord_name = getattr(self, "sample_weight_coord", None)
-        if not coord_name:
-            return None
-        if coord_name not in data.coords:
-            return None
-
-        # Get sample_dim from the transform (required for all transforms that use this mixin)
         sample_dim = getattr(self, "sample_dim", "trial")
+        return extract_sample_weights(data, sample_dim=sample_dim, coord_name=coord_name, sample_index=sample_index)
 
-        weights = data.coords[coord_name]
-        if sample_dim not in weights.dims:
-            raise ValueError(
-                f"Sample weight coordinate '{coord_name}' must include the sample dimension '{sample_dim}'."
-            )
-
-        # Align weights to sample_index
-        try:
-            aligned = weights.reindex({sample_dim: sample_index})
-        except ValueError:
-            aligned = weights.sel({sample_dim: sample_index})
-
-        aligned = aligned.transpose(sample_dim, ...)
-        if aligned.ndim != 1:
-            raise ValueError(
-                f"Sample weight coordinate '{coord_name}' must be 1D over '{sample_dim}', "
-                f"but has dimensions {aligned.dims}."
-            )
-
-        weight_values = aligned.astype(float).values
-        if np.isnan(weight_values).any():
-            raise ValueError(f"Sample weight coordinate '{coord_name}' contains NaN values after alignment.")
-
-        if weight_values.shape[0] != sample_index.shape[0]:
-            raise ValueError(
-                f"Sample weight coordinate '{coord_name}' length ({weight_values.shape[0]}) "
-                f"does not match the number of samples ({sample_index.shape[0]})."
-            )
-
-        return weight_values
+    def _extract_sample_weight(self, data: xr.DataArray, sample_index: pd.Index) -> np.ndarray | None:
+        """Backward-compatible alias for ``_extract_sample_weights``."""
+        return self._extract_sample_weights(data, sample_index)

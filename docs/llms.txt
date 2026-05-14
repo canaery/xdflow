@@ -1,0 +1,17 @@
+# xdflow
+
+XDFlow is a dimension-aware ML pipeline framework for scientific data built on xarray.
+
+Important docs for LLMs and coding agents:
+
+- Overview: /index/
+- Data contract: /concepts/data_contract/
+- Basic pipeline walkthrough: /tutorials/basic-pipeline/
+- Reusable ML patterns: /tutorials/reusable-ml-patterns/
+- Using XDFlow with LLMs: /guides/llm/
+- Core API: /api/core/
+- Composition API: /api/composition/
+- Cross-validation API: /api/cv/
+- Transforms API: /api/transforms/
+
+Repository-level coding-agent instructions live in AGENTS.md.

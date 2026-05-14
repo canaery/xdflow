@@ -22,6 +22,16 @@ Primary classes:
 
 Use these for repeated train/validation splitting with optional shuffling, holdout sets, and stratification.
 
+`KFoldValidator` can also keep repeated `orig_trial` groups together when augmented samples share the same original-trial coordinate.
+
+## `xdflow.cv.domain`
+
+Primary class:
+
+- `SampledDomainKFoldValidator`
+
+Use this for few-shot transfer evaluation. Validation folds are built from target-domain trials, while training folds include all source-domain trials plus a sampled subset of target-domain trials.
+
 ## `xdflow.cv.leave_group_out`
 
 Primary classes:

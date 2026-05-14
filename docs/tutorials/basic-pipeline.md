@@ -2,6 +2,8 @@
 
 This walkthrough mirrors the intent of the notebook in `docs/tutorials/basic_tutorial.ipynb`, but keeps the published documentation lightweight and RTD-friendly.
 
+It uses `MultiTaperTransform`, so install `xdflow[spectral]` or `xdflow[all]` before running the example.
+
 ## 1. Create labeled input data
 
 `xdflow` expects an `xarray.DataArray` with named dimensions and coordinates. The repo includes a synthetic generator for a trial-aligned LFP-like dataset:

@@ -46,6 +46,12 @@ This repository also includes a `uv.lock`, so a reproducible local setup can be 
 uv sync --extra dev --extra docs
 ```
 
+To run the spectral tutorial examples locally, include the spectral extra:
+
+```bash
+uv sync --extra dev --extra docs --extra spectral
+```
+
 ## Documentation build
 
 Local docs build:

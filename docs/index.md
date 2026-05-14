@@ -30,4 +30,6 @@ The library is built around a small set of abstractions:
 1. Read [Installation](installation.md) to set up the package and optional extras.
 2. Read [Concepts](concepts/index.md) for the runtime model and transform rules.
 3. Follow the [Basic Pipeline Walkthrough](tutorials/basic-pipeline.md) for an end-to-end example.
-4. Use the [API Reference](api/index.md) for class and function details.
+4. Read [Reusable ML Patterns](tutorials/reusable-ml-patterns.md) for multilabel, weighting, and domain-transfer examples.
+5. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
+6. Use the [API Reference](api/index.md) for class and function details.

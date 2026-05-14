@@ -29,7 +29,10 @@ class LeaveGroupOutValidator(CrossValidator):
         n_splits: int = None,
         random_state: int = 0,
         exclude_intertrial_from_scoring: bool = False,
+        exclude_offsets_from_scoring: bool = False,
         use_stateful_fit_cache: bool = True,
+        release_fold_memory: bool = False,
+        scoring_needs_proba: bool = False,
         verbose: bool = True,
     ):
         """
@@ -53,9 +56,12 @@ class LeaveGroupOutValidator(CrossValidator):
         super().__init__(
             pooling_score_weight=pooling_score_weight,
             scoring=scoring,
+            scoring_needs_proba=scoring_needs_proba,
             verbose=verbose,
             use_stateful_fit_cache=use_stateful_fit_cache,
+            release_fold_memory=release_fold_memory,
             exclude_intertrial_from_scoring=exclude_intertrial_from_scoring,
+            exclude_offsets_from_scoring=exclude_offsets_from_scoring,
         )
         self.group_coord = group_coord
         self.test_group_ids = test_group_ids or []
@@ -203,7 +209,10 @@ class LeaveSessionOutValidator(LeaveGroupOutValidator):
         n_splits: int = None,
         random_state: int = 0,
         exclude_intertrial_from_scoring: bool = False,
+        exclude_offsets_from_scoring: bool = False,
         use_stateful_fit_cache: bool = True,
+        release_fold_memory: bool = False,
+        scoring_needs_proba: bool = False,
         verbose: bool = True,
     ):
         """
@@ -233,7 +242,10 @@ class LeaveSessionOutValidator(LeaveGroupOutValidator):
             n_splits=n_splits,
             random_state=random_state,
             exclude_intertrial_from_scoring=exclude_intertrial_from_scoring,
+            exclude_offsets_from_scoring=exclude_offsets_from_scoring,
             use_stateful_fit_cache=use_stateful_fit_cache,
+            release_fold_memory=release_fold_memory,
+            scoring_needs_proba=scoring_needs_proba,
             verbose=verbose,
         )
         # Maintain backward-compatible attribute names for introspection
@@ -261,7 +273,10 @@ class LeaveAnimalOutValidator(LeaveGroupOutValidator):
         n_splits: int = None,
         random_state: int = 0,
         exclude_intertrial_from_scoring: bool = False,
+        exclude_offsets_from_scoring: bool = False,
         use_stateful_fit_cache: bool = True,
+        release_fold_memory: bool = False,
+        scoring_needs_proba: bool = False,
         verbose: bool = True,
     ):
         """
@@ -291,6 +306,9 @@ class LeaveAnimalOutValidator(LeaveGroupOutValidator):
             n_splits=n_splits,
             random_state=random_state,
             exclude_intertrial_from_scoring=exclude_intertrial_from_scoring,
+            exclude_offsets_from_scoring=exclude_offsets_from_scoring,
             use_stateful_fit_cache=use_stateful_fit_cache,
+            release_fold_memory=release_fold_memory,
+            scoring_needs_proba=scoring_needs_proba,
             verbose=verbose,
         )

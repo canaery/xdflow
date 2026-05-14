@@ -1,6 +1,7 @@
 """Tests for SKLearn wrapper transforms."""
 
 import numpy as np
+import xarray as xr
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.tree import DecisionTreeClassifier
@@ -140,6 +141,50 @@ class TestSKLearnPredictor:
         """Test that SKLearnPredictor is stateful."""
         predictor = SKLearnPredictor(estimator_cls=LogisticRegression, sample_dim="trial", target_coord="label")
         assert predictor.is_stateful
+
+    def test_multilabel_classifier_predicts_target_matrix(self):
+        rng = np.random.default_rng(123)
+        n_trials = 80
+        target_a = np.tile([0, 1], n_trials // 2)
+        target_b = np.tile([0, 0, 1, 1], n_trials // 4)
+        X = np.column_stack(
+            [
+                target_a + rng.normal(scale=0.1, size=n_trials),
+                target_b + rng.normal(scale=0.1, size=n_trials),
+                rng.normal(size=n_trials),
+            ]
+        )
+        container = DataContainer(
+            xr.DataArray(
+                X,
+                dims=("trial", "feature"),
+                coords={
+                    "trial": np.arange(n_trials),
+                    "feature": np.arange(X.shape[1]),
+                    "target__a": ("trial", target_a),
+                    "target__b": ("trial", target_b),
+                },
+            )
+        )
+
+        predictor = SKLearnPredictor(
+            estimator_cls=LogisticRegression,
+            sample_dim="trial",
+            target_coord=["target__a", "target__b"],
+            is_classifier=True,
+            is_multilabel=True,
+            max_iter=200,
+        )
+
+        predictor.fit(container)
+        predictions = predictor.predict(container)
+        probabilities = predictor.predict_proba(container)
+
+        assert predictions.data.dims == ("trial", "target")
+        assert probabilities.data.dims == ("trial", "target")
+        assert list(predictions.data.coords["target"].values) == ["target__a", "target__b"]
+        assert predictor.encoder is None
+        assert predictor.get_labels() == ["target__a", "target__b"]
 
 
 class TestSKLearnRegression:

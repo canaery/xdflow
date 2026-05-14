@@ -4,6 +4,7 @@ import numpy as np
 
 from xdflow.transforms.basic_transforms import (
     AverageTransform,
+    BalanceClassWeightTransform,
     CropTimeTransform,
     FlattenTransform,
     FunctionTransform,
@@ -180,6 +181,15 @@ class TestTrialSampler:
         # Just verify shapes are correct
         assert result1.data.shape == result2.data.shape
 
+    def test_sample_with_random_state_is_reproducible(self, data_container_factory):
+        container = data_container_factory(n_trials=100, n_channels=8, n_time=50)
+        transform = TrialSampler(n_trials=20, shuffle=True, random_state=123)
+
+        result1 = transform.transform(container)
+        result2 = transform.transform(container)
+
+        np.testing.assert_array_equal(result1.data.trial.values, result2.data.trial.values)
+
     def test_sample_more_than_available(self, data_container_factory):
         """Test that sampling more trials than available is handled."""
         container = data_container_factory(n_trials=10, n_channels=8, n_time=50)
@@ -228,3 +238,34 @@ class TestSampleWeightTransform:
         weights = result.data.coords["sample_weight"].values
 
         assert np.allclose(weights, [1.0, 2.0, 4.0])
+
+
+class TestBalanceClassWeightTransform:
+    def test_balances_classes(self, data_container_factory):
+        container = data_container_factory(n_trials=6, n_channels=2, n_time=1)
+        container.data.coords["label"] = ("trial", ["a", "a", "a", "b", "b", "c"])
+
+        transform = BalanceClassWeightTransform(class_coord="label")
+        result = transform.transform(container)
+
+        weights = result.data.coords["sample_weight"].values
+        assert np.allclose(weights, [1 / 3, 1 / 3, 1 / 3, 1 / 2, 1 / 2, 1.0])
+
+    def test_balances_classes_with_domain_totals(self, data_container_factory):
+        container = data_container_factory(n_trials=6, n_channels=2, n_time=1)
+        container.data.coords["label"] = ("trial", ["a", "a", "b", "a", "b", "b"])
+        container.data.coords["domain"] = ("trial", ["source", "source", "source", "target", "target", "target"])
+
+        transform = BalanceClassWeightTransform(
+            class_coord="label",
+            balance_domains=True,
+            domain_coord="domain",
+            domain_weights={"source": 0.25, "target": 0.75},
+            normalize_domain_totals=True,
+            weight_normalize="sum",
+        )
+        result = transform.transform(container)
+
+        weights = result.data.coords["sample_weight"].values
+        assert np.isclose(weights[:3].sum(), 0.25)
+        assert np.isclose(weights[3:].sum(), 0.75)

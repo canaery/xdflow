@@ -1,5 +1,4 @@
 import inspect
-from inspect import Parameter, signature
 from typing import Any
 
 import numpy as np
@@ -7,7 +6,6 @@ import xarray as xr
 from joblib import Parallel, delayed
 from sklearn.preprocessing import LabelEncoder
 
-from xdflow.core.base import Transform
 from xdflow.core.data_container import DataContainer, TransformError
 from xdflow.transforms.domain_adaptation import AdaptiveStrategy, AdaptiveTransform
 
@@ -222,27 +220,9 @@ class AdaptWrapperTransform(AdaptiveTransform):
 
         return DataContainer(transformed_da)
 
-    def clone(self) -> "Transform":
-        """Return a fresh instance with the same constructor parameters.
-
-        Same as base class, but also includes parameters for the strategy.
-        """
-        ctor = signature(type(self).__init__)
-        ctor_param_names = {
-            name
-            for name, p in ctor.parameters.items()
-            if name != "self" and p.kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY)
-        }
-
-        raw_params = self.get_params(deep=False) or {}
-        filtered_params = {k: v for k, v in raw_params.items() if k in ctor_param_names}
-
-        # combine filtered_params, strategy_params and adapt_estimator_params
-        strategy_params = self._strategy_kwargs
-        adapt_estimator_params = self._adapt_estimator_kwargs
-        combined_params = {**filtered_params, **strategy_params, **adapt_estimator_params}
-
-        return type(self)(**combined_params)
+    def _get_clone_kwargs(self) -> dict:
+        """Include adapt estimator parameters in clone kwargs."""
+        return {**super()._get_clone_kwargs(), **self._adapt_estimator_kwargs}
 
     def _get_output_coords(self, data: xr.DataArray) -> dict[str, Any]:
         """

@@ -26,7 +26,10 @@ class KFoldValidator(CrossValidator):
         scoring: str | Callable | None = None,
         stratify_coord: str | None = None,
         exclude_intertrial_from_scoring: bool = False,
+        exclude_offsets_from_scoring: bool = False,
         use_stateful_fit_cache: bool = True,
+        release_fold_memory: bool = False,
+        scoring_needs_proba: bool = False,
         verbose: bool = True,
     ):
         """
@@ -49,10 +52,13 @@ class KFoldValidator(CrossValidator):
         super().__init__(
             pooling_score_weight=pooling_score_weight,
             scoring=scoring,
+            scoring_needs_proba=scoring_needs_proba,
             stratify_coord=stratify_coord,
             verbose=verbose,
             use_stateful_fit_cache=use_stateful_fit_cache,
+            release_fold_memory=release_fold_memory,
             exclude_intertrial_from_scoring=exclude_intertrial_from_scoring,
+            exclude_offsets_from_scoring=exclude_offsets_from_scoring,
         )
         self.n_splits = n_splits
         self.shuffle = shuffle
@@ -81,9 +87,15 @@ class KFoldValidator(CrossValidator):
 
         if stratify_coord is None:
             # Default: single-target classification stratifies on final target coord
-            if final_predictor and final_predictor.is_classifier and not isinstance(self.final_target_coord_, list):
+            if (
+                final_predictor
+                and final_predictor.is_classifier
+                and not isinstance(self.final_target_coord_, list)
+                and not getattr(final_predictor, "is_multilabel", False)
+            ):
                 stratify_coord = self.final_target_coord_
 
+        group_values = self._resolve_orig_trial_groups(container.data)
         if stratify_coord:
             if stratify_coord not in container.data.coords:
                 raise ValueError(
@@ -91,17 +103,32 @@ class KFoldValidator(CrossValidator):
                     f"Available: {list(container.data.coords.keys())}"
                 )
             labels = container.data.coords[stratify_coord].values
-            self._validate_stratify_labels(labels, n_splits=None, test_size=self.test_size, context="holdout split")
+            if group_values is not None:
+                split_units, split_labels = self._get_unique_groups_and_labels(group_values, labels, "holdout split")
+            else:
+                split_units, split_labels = all_trials, labels
+            if split_labels is not None:
+                self._validate_stratify_labels(
+                    split_labels, n_splits=None, test_size=self.test_size, context="holdout split"
+                )
 
             # Perform stratified split
-            train_val_indices, holdout_indices = train_test_split(
-                all_trials, test_size=self.test_size, stratify=labels, random_state=self.random_state
+            train_units, holdout_units = train_test_split(
+                split_units, test_size=self.test_size, stratify=split_labels, random_state=self.random_state
             )
         else:
             # Regression or multi-target: random split without stratification
-            train_val_indices, holdout_indices = train_test_split(
-                all_trials, test_size=self.test_size, random_state=self.random_state
+            split_units = np.unique(group_values) if group_values is not None else all_trials
+            train_units, holdout_units = train_test_split(
+                split_units, test_size=self.test_size, random_state=self.random_state
             )
+
+        if group_values is not None:
+            train_val_indices = all_trials[np.isin(group_values, train_units)]
+            holdout_indices = all_trials[np.isin(group_values, holdout_units)]
+        else:
+            train_val_indices = train_units
+            holdout_indices = holdout_units
 
         return train_val_indices, holdout_indices
 
@@ -133,28 +160,50 @@ class KFoldValidator(CrossValidator):
             and final_predictor
             and final_predictor.is_classifier
             and not isinstance(self.final_target_coord_, list)
+            and not getattr(final_predictor, "is_multilabel", False)
         ):
             stratify_coord = self.final_target_coord_
 
+        group_values = self._resolve_orig_trial_groups(cv_container)
         if stratify_coord:
             from sklearn.model_selection import StratifiedKFold
 
             if stratify_coord not in cv_container.coords:
                 raise ValueError(f"Stratification coordinate '{stratify_coord}' not found in container coords.")
             labels_array = cv_container.coords[stratify_coord].values
-            self._validate_stratify_labels(labels_array, n_splits=self.n_splits, test_size=None, context="CV split")
+            if group_values is not None:
+                split_units, split_labels = self._get_unique_groups_and_labels(group_values, labels_array, "CV split")
+            else:
+                split_units, split_labels = np.arange(len(labels_array)), labels_array
+            if split_labels is not None:
+                self._validate_stratify_labels(split_labels, n_splits=self.n_splits, test_size=None, context="CV split")
 
-            splitter = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.random_state)
-            splits = splitter.split(np.arange(len(labels_array)), labels_array)
+            if split_labels is None:
+                from sklearn.model_selection import KFold
+
+                splitter = KFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.random_state)
+                splits = splitter.split(np.arange(len(split_units)))
+            else:
+                splitter = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.random_state)
+                splits = splitter.split(np.arange(len(split_units)), split_labels)
         else:
             from sklearn.model_selection import KFold
 
+            split_units = np.unique(group_values) if group_values is not None else np.arange(len(indices_to_split))
             splitter = KFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.random_state)
-            splits = splitter.split(np.arange(len(indices_to_split)))
+            splits = splitter.split(np.arange(len(split_units)))
 
         # Yield train/val indices (map positions back to trial IDs)
         for train_pos, val_pos in splits:
-            yield cv_container.trial.values[train_pos], cv_container.trial.values[val_pos]
+            if group_values is not None:
+                train_groups = split_units[train_pos]
+                val_groups = split_units[val_pos]
+                yield (
+                    cv_container.trial.values[np.isin(group_values, train_groups)],
+                    cv_container.trial.values[np.isin(group_values, val_groups)],
+                )
+            else:
+                yield cv_container.trial.values[train_pos], cv_container.trial.values[val_pos]
 
 
 class GroupedKFoldValidator(CrossValidator):
@@ -185,7 +234,10 @@ class GroupedKFoldValidator(CrossValidator):
         stratify_coord: str | None = None,
         stratify_by_group: bool = True,
         exclude_intertrial_from_scoring: bool = False,
+        exclude_offsets_from_scoring: bool = False,
         use_stateful_fit_cache: bool = True,
+        release_fold_memory: bool = False,
+        scoring_needs_proba: bool = False,
         verbose: bool = True,
     ):
         """
@@ -215,8 +267,11 @@ class GroupedKFoldValidator(CrossValidator):
         super().__init__(
             pooling_score_weight=pooling_score_weight,
             scoring=scoring,
+            scoring_needs_proba=scoring_needs_proba,
             use_stateful_fit_cache=use_stateful_fit_cache,
+            release_fold_memory=release_fold_memory,
             exclude_intertrial_from_scoring=exclude_intertrial_from_scoring,
+            exclude_offsets_from_scoring=exclude_offsets_from_scoring,
             stratify_coord=stratify_coord,
             verbose=verbose,
         )

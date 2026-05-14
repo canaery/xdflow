@@ -2,6 +2,7 @@
 Cross-validation framework for pipeline evaluation.
 """
 
+import gc
 import inspect
 import warnings
 from abc import ABC, abstractmethod
@@ -9,8 +10,11 @@ from collections.abc import Callable, Iterator
 
 import numpy as np
 from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
     confusion_matrix,
     f1_score,
+    hamming_loss,
     mean_absolute_error,
     mean_squared_error,
     r2_score,
@@ -46,7 +50,20 @@ def _make_multioutput_scorer(metric_func, name, *, negate: bool = False):
         base = metric_func(y_true, y_pred, multioutput="uniform_average")
         return -base if negate else base
 
-    return lambda: (_scorer, name)
+    return lambda: (_scorer, name, False)
+
+
+def _cleanup_torch_memory() -> None:
+    """Best-effort cleanup of PyTorch CUDA caches after a fold."""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+    except Exception:
+        pass
 
 
 class CrossValidator(ABC):
@@ -82,26 +99,57 @@ class CrossValidator(ABC):
         "rmse": lambda: (
             lambda y_true, y_pred: -np.sqrt(mean_squared_error(y_true, y_pred, multioutput="uniform_average")),
             "rmse",
+            False,
         ),
         "root_mean_squared_error": lambda: (
             lambda y_true, y_pred: -np.sqrt(mean_squared_error(y_true, y_pred, multioutput="uniform_average")),
             "rmse",
+            False,
         ),
         "mae": _make_multioutput_scorer(mean_absolute_error, "mae", negate=True),
         "mean_absolute_error": _make_multioutput_scorer(mean_absolute_error, "mae", negate=True),
-        "f1": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted"), "f1_weighted"),
-        "f1_weighted": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted"), "f1_weighted"),
-        "f1_macro": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="macro"), "f1_macro"),
-        "f1_micro": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="micro"), "f1_micro"),
+        "f1": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted"), "f1_weighted", False),
+        "f1_weighted": lambda: (
+            lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted"),
+            "f1_weighted",
+            False,
+        ),
+        "f1_macro": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="macro"), "f1_macro", False),
+        "f1_micro": lambda: (lambda y_true, y_pred: f1_score(y_true, y_pred, average="micro"), "f1_micro", False),
+        "f1_samples": lambda: (
+            lambda y_true, y_pred: f1_score(y_true, y_pred, average="samples", zero_division=0),
+            "f1_samples",
+            False,
+        ),
+        "hamming_loss": lambda: (lambda y_true, y_pred: -hamming_loss(y_true, y_pred), "hamming_loss", False),
+        "subset_accuracy": lambda: (lambda y_true, y_pred: accuracy_score(y_true, y_pred), "subset_accuracy", False),
+        "ap_macro": lambda: (
+            lambda y_true, y_proba: average_precision_score(y_true, y_proba, average="macro"),
+            "ap_macro",
+            True,
+        ),
+        "ap_samples": lambda: (
+            lambda y_true, y_proba: average_precision_score(y_true, y_proba, average="samples"),
+            "ap_samples",
+            True,
+        ),
+        "ap_micro": lambda: (
+            lambda y_true, y_proba: average_precision_score(y_true, y_proba, average="micro"),
+            "ap_micro",
+            True,
+        ),
     }
 
     def __init__(
         self,
         pooling_score_weight: float = 0.0,
         use_stateful_fit_cache: bool = True,
+        release_fold_memory: bool = False,
         scoring: str | Callable | None = None,
+        scoring_needs_proba: bool = False,
         stratify_coord: str | None = None,
         exclude_intertrial_from_scoring: bool = False,
+        exclude_offsets_from_scoring: bool = False,
         verbose: bool = True,
     ):
         """
@@ -113,6 +161,8 @@ class CrossValidator(ABC):
                 Must be between 0.0 and 1.0.
                 Higher values give more weight to folds with more trials.
             use_stateful_fit_cache: Whether to cache stateful transforms during CV.
+            release_fold_memory: Whether to aggressively release per-fold objects and
+                clear PyTorch CUDA caches after each fold.
             scoring: Scoring metric to use for evaluation. If None, auto-selects:
                 - 'f1_weighted' for classification tasks
                 - 'r2' for regression tasks
@@ -124,8 +174,12 @@ class CrossValidator(ABC):
                   The container parameter provides access to the validation/test
                   DataContainer, allowing custom scoring based on coordinates like
                   concentration_bin, session, etc.
+            scoring_needs_proba: Whether a custom scorer expects probabilities from
+                predict_proba instead of hard predictions.
             exclude_intertrial_from_scoring: If True, automatically remove any trials whose
                 event_type coordinate is "intertrial" from CV/holdout scoring.
+            exclude_offsets_from_scoring: If True, remove trials whose time_offset_ms
+                coordinate is not 0 from CV/holdout scoring.
             stratify_coord: Optional coordinate name to use for stratified splits. If set,
                 holdout and CV splits will stratify on this coordinate (must be present
                 in the data). For multi-target/regression tasks, this allows stratifying
@@ -141,10 +195,12 @@ class CrossValidator(ABC):
 
         self.pooling_score_weight = pooling_score_weight
         self.scoring = scoring
+        self.scoring_needs_proba = bool(scoring_needs_proba)
 
         # Results from cross-validation
         self.cv_scores_ = []
         self.oof_predictions_ = []  # Out-of-fold predictions
+        self.oof_probabilities_ = []  # Out-of-fold probabilities/scores
         self.true_labels_ = []
 
         # Holdout test set management
@@ -153,6 +209,7 @@ class CrossValidator(ABC):
         self.holdout_trial_labels_: np.ndarray | None = None
         self.holdout_score_ = None
         self.holdout_pred_labels_ = None  # Holdout test predictions
+        self.holdout_probabilities_ = None  # Holdout test probabilities/scores
         self.holdout_true_labels_ = None  # Holdout test true labels
         self.holdout_container_: DataContainer | None = None  # Holdout test container (for container-aware scorers)
         self.holdout_scoring_mask_: np.ndarray | None = None  # Mask used by container-aware scorer
@@ -161,12 +218,15 @@ class CrossValidator(ABC):
         self._pipeline = None
         self.final_target_coord_ = None
         self.use_stateful_fit_cache = use_stateful_fit_cache
+        self.release_fold_memory = release_fold_memory
         self.stratify_coord = stratify_coord
         self.exclude_intertrial_from_scoring = exclude_intertrial_from_scoring
+        self.exclude_offsets_from_scoring = exclude_offsets_from_scoring
 
         # Resolved scoring function (set after pipeline is known)
         self._scoring_func = None
         self._metric_name = None
+        self._scoring_needs_proba = False
         self._scoring_accepts_container = False
 
         self.verbose = verbose
@@ -240,10 +300,64 @@ class CrossValidator(ABC):
                 "train_test_split with stratify requires at least 2 samples per class. Bin or filter before stratifying."
             )
 
+    def _resolve_orig_trial_groups(self, data) -> np.ndarray | None:
+        """Return per-trial grouping values based on orig_trial, if present."""
+        if "orig_trial" not in data.coords:
+            return None
+
+        if data.coords["orig_trial"].dims != ("trial",):
+            raise ValueError(
+                f"orig_trial coordinate must have dimension ('trial',), but has {data.coords['orig_trial'].dims}."
+            )
+
+        if len(np.unique(data.coords["trial"].values)) == len(np.unique(data.coords["orig_trial"].values)):
+            return None
+
+        orig_values = data.coords["orig_trial"].values
+        if "session" in data.coords and data.coords["session"].dims == ("trial",):
+            session_values = data.coords["session"].values
+            return np.asarray([f"{session}::{orig}" for session, orig in zip(session_values, orig_values)], dtype=str)
+
+        return orig_values.astype(str)
+
+    @staticmethod
+    def _get_unique_groups_and_labels(
+        group_values: np.ndarray, labels: np.ndarray | None, context: str
+    ) -> tuple[np.ndarray, np.ndarray | None]:
+        """Return unique groups and optional group-level labels for stratification."""
+
+        def _normalize_group(value):
+            if isinstance(value, np.ndarray):
+                value = value.tolist()
+            if isinstance(value, (list, tuple)):
+                return tuple(value)
+            return value
+
+        unique_groups = np.unique(group_values)
+        if labels is None:
+            return unique_groups, None
+
+        group_labels = []
+        for group in unique_groups:
+            group_norm = _normalize_group(group)
+            group_mask = np.array([_normalize_group(v) == group_norm for v in group_values])
+            group_label_values = labels[group_mask]
+            unique_labels = np.unique(group_label_values)
+            if len(unique_labels) != 1:
+                warnings.warn(
+                    f"Stratification coord in {context} varies within split groups. "
+                    "Disabling stratification for this split.",
+                    stacklevel=2,
+                )
+                return unique_groups, None
+            group_labels.append(unique_labels[0])
+
+        return unique_groups, np.array(group_labels, dtype=object)
+
     # ------------------------------
     # Scoring Function Resolution
     # ------------------------------
-    def _get_scoring_func(self) -> tuple[Callable, str]:
+    def _get_scoring_func(self) -> tuple[Callable, str, bool]:
         """
         Resolve the scoring function and metric name based on the scoring parameter and task type.
 
@@ -253,12 +367,12 @@ class CrossValidator(ABC):
 
         Returns
         -------
-        tuple[Callable, str]
-            A tuple of (scoring_function, metric_name)
+        tuple[Callable, str, bool]
+            A tuple of (scoring_function, metric_name, needs_proba)
         """
         if self._scoring_func is not None:
             # Already resolved
-            return self._scoring_func, self._metric_name
+            return self._scoring_func, self._metric_name, self._scoring_needs_proba
 
         # Get the final predictor to determine task type
         final_predictor = None
@@ -273,32 +387,48 @@ class CrossValidator(ABC):
             self._scoring_func = self.scoring
             self._metric_name = "custom"
             self._scoring_accepts_container = _scorer_accepts_container(self.scoring)
+            self._scoring_needs_proba = bool(self.scoring_needs_proba)
+            if self._scoring_needs_proba and not final_predictor.is_classifier:
+                raise ValueError(
+                    "Custom scoring configured with scoring_needs_proba=True, "
+                    "but the final predictor is not a classifier."
+                )
 
-            return self._scoring_func, self._metric_name
+            return self._scoring_func, self._metric_name, self._scoring_needs_proba
 
         # If user provided a string metric name
         if isinstance(self.scoring, str):
             metric_name = self.scoring.lower()
             if metric_name not in self._STRING_SCORERS:
                 raise ValueError(
-                    f"Unknown scoring metric: {self.scoring}. "
-                    f"Supported: 'r2', 'mse', 'rmse', 'mae', 'f1_weighted', 'f1_macro', 'f1_micro'"
+                    f"Unknown scoring metric: {self.scoring}. Supported: {sorted(self._STRING_SCORERS.keys())}"
                 )
 
-            self._scoring_func, self._metric_name = self._STRING_SCORERS[metric_name]()
-            return self._scoring_func, self._metric_name
+            self._scoring_func, self._metric_name, self._scoring_needs_proba = self._STRING_SCORERS[metric_name]()
+            if self._scoring_needs_proba and not final_predictor.is_classifier:
+                raise ValueError(
+                    f"Scoring metric '{self._metric_name}' requires probability scores, "
+                    "but the final predictor is not a classifier."
+                )
+            return self._scoring_func, self._metric_name, self._scoring_needs_proba
 
-        # Auto-select based on is_classifier
+        # Auto-select based on is_classifier and is_multilabel
         if final_predictor.is_classifier:
-            self._scoring_func = lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted")
-            self._metric_name = "f1_weighted"
+            if getattr(final_predictor, "is_multilabel", False):
+                self._scoring_func = lambda y_true, y_pred: f1_score(y_true, y_pred, average="samples", zero_division=0)
+                self._metric_name = "f1_samples"
+            else:
+                self._scoring_func = lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted")
+                self._metric_name = "f1_weighted"
+            self._scoring_needs_proba = False
         else:
             # Assume regression (is_regressor = not is_classifier)
             # Use multioutput="uniform_average" to handle both single and multi-target
             self._scoring_func = lambda y_true, y_pred: r2_score(y_true, y_pred, multioutput="uniform_average")
             self._metric_name = "r2"
+            self._scoring_needs_proba = False
 
-        return self._scoring_func, self._metric_name
+        return self._scoring_func, self._metric_name, self._scoring_needs_proba
 
     def _extract_targets(self, predictor: Predictor, container: DataContainer) -> np.ndarray:
         """
@@ -319,38 +449,46 @@ class CrossValidator(ABC):
         *,
         context: str,
     ) -> tuple[np.ndarray, np.ndarray, DataContainer, np.ndarray | None]:
-        """
-        Optionally drop intertrial rows from scoring inputs based on the toggle.
-        """
-        if not self.exclude_intertrial_from_scoring:
+        """Optionally drop rows from scoring inputs based on configured filters."""
+        if not self.exclude_intertrial_from_scoring and not self.exclude_offsets_from_scoring:
             return pred_labels, true_labels, container, None
 
-        if "event_type" not in container.data.coords:
-            warnings.warn(
-                f"exclude_intertrial_from_scoring is enabled but event_type coord missing during {context}; "
-                "keeping all trials.",
-                stacklevel=2,
-            )
-            return pred_labels, true_labels, container, None
+        exclude_intertrial_mask = True
+        if self.exclude_intertrial_from_scoring:
+            if "event_type" not in container.data.coords:
+                warnings.warn(
+                    f"exclude_intertrial_from_scoring is enabled but event_type coord missing during {context}; "
+                    "keeping all trials.",
+                    stacklevel=2,
+                )
+            else:
+                event_types = np.asarray(container.data.coords["event_type"].values)
+                if event_types.shape[0] != pred_labels.shape[0]:
+                    raise ValueError(
+                        f"Mismatch between event_type coord ({event_types.shape[0]}) and predictions "
+                        f"({pred_labels.shape[0]}) during {context} scoring."
+                    )
+                exclude_intertrial_mask = event_types != "intertrial"
 
-        event_types = np.asarray(container.data.coords["event_type"].values)
-        if event_types.shape[0] != pred_labels.shape[0]:
-            raise ValueError(
-                f"Mismatch between event_type coord ({event_types.shape[0]}) and predictions "
-                f"({pred_labels.shape[0]}) during {context} scoring."
-            )
+        exclude_offsets_mask = True
+        if self.exclude_offsets_from_scoring:
+            if "time_offset_ms" not in container.data.coords:
+                warnings.warn(
+                    f"exclude_offsets_from_scoring is enabled but time_offset_ms coord missing during {context}; "
+                    "keeping all trials.",
+                    stacklevel=2,
+                )
+            else:
+                time_offsets = np.asarray(container.data.coords["time_offset_ms"].values)
+                exclude_offsets_mask = time_offsets == 0
 
-        mask = event_types != "intertrial"
+        mask = exclude_intertrial_mask & exclude_offsets_mask
         if mask.all():
             return pred_labels, true_labels, container, None
 
         if not mask.any():
-            # NOTE: we only discover fully intertrial splits here. The CV setup does not
-            # pre-validate that each fold/holdout contains non-intertrial trials, so upstream
-            # callers should ensure their splits satisfy that constraint when enabling this flag.
             raise ValueError(
-                "exclude_intertrial_from_scoring removed all validation samples. "
-                "Ensure at least one non-intertrial trial exists per split."
+                "Scoring filters removed all validation samples. Ensure at least one scored sample exists per split."
             )
 
         filtered_pred = pred_labels[mask]
@@ -384,6 +522,8 @@ class CrossValidator(ABC):
         """
         for predictor in self._iter_predictors(pipeline):
             if not getattr(predictor, "is_classifier", False):
+                continue
+            if getattr(predictor, "is_multilabel", False):
                 continue
             target_coord = predictor.target_coord  # required arg for predictors
             encoder = predictor.encoder  # required for classifiers, should error otherwise
@@ -438,7 +578,11 @@ class CrossValidator(ABC):
         final_predictor = self._get_final_predictor()
         if final_predictor is None:
             raise ValueError("Pipeline must end with a Predictor to use cross-validation.")
-        if final_predictor.is_classifier and isinstance(self.final_target_coord_, list):
+        if (
+            final_predictor.is_classifier
+            and isinstance(self.final_target_coord_, list)
+            and not getattr(final_predictor, "is_multilabel", False)
+        ):
             raise ValueError("Multi-target classification is not supported; use a single target_coord for classifiers.")
 
     def _auto_detect_pipeline_parts(self, pipeline):
@@ -598,6 +742,10 @@ class CrossValidator(ABC):
 
         # Predict on validation data
         validation_results_container = fold_pipeline.predict(validation_container, verbose=verbose)
+        scoring_func, metric_name, needs_proba = self._get_scoring_func()
+        validation_proba = None
+        if needs_proba:
+            validation_proba = fold_pipeline.predict_proba(validation_container, verbose=verbose).data.values
 
         # Extract predictions
         pred_labels = validation_results_container.data.values
@@ -605,21 +753,25 @@ class CrossValidator(ABC):
         final_predictor = fold_pipeline.predictive_transform
         true_labels = self._extract_targets(final_predictor, validation_results_container)
 
-        pred_labels, true_labels, scoring_container, _ = self._filter_scoring_inputs(
+        pred_labels, true_labels, scoring_container, scoring_mask = self._filter_scoring_inputs(
             pred_labels,
             true_labels,
             validation_results_container,
             context="cross-validation",
         )
+        scoring_values = pred_labels
+        if needs_proba:
+            scoring_values = validation_proba if scoring_mask is None else validation_proba[scoring_mask]
 
         # Calculate fold score using the selected scoring function
-        scoring_func, metric_name = self._get_scoring_func()  # TODO: can just call once outside fold loop
         if self._scoring_accepts_container:
-            fold_score = scoring_func(true_labels, pred_labels, scoring_container)
+            fold_score = scoring_func(true_labels, scoring_values, scoring_container)
         else:
-            fold_score = scoring_func(true_labels, pred_labels)
+            fold_score = scoring_func(true_labels, scoring_values)
         self.cv_scores_.append(fold_score)
         self.oof_predictions_.append(pred_labels)
+        if needs_proba:
+            self.oof_probabilities_.append(scoring_values)
         self.true_labels_.append(true_labels)
 
         if self.verbose:
@@ -627,6 +779,11 @@ class CrossValidator(ABC):
 
         if pruning_callback is not None:
             pruning_callback(fold_idx, fold_score)
+
+        if self.release_fold_memory:
+            del fold_pipeline, validation_results_container, validation_container, train_container
+            gc.collect()
+            _cleanup_torch_memory()
 
     def cross_validate(
         self,
@@ -676,6 +833,7 @@ class CrossValidator(ABC):
         # Step 6: Reset evaluation metrics
         self.cv_scores_ = []
         self.oof_predictions_ = []
+        self.oof_probabilities_ = []
         self.true_labels_ = []
 
         # Step 7: Run cross-validation loop with stateful pipeline
@@ -695,7 +853,7 @@ class CrossValidator(ABC):
 
             # Print summary of fold scores
             if self.verbose and self.cv_scores_:
-                _, metric_name = self._get_scoring_func()
+                _, metric_name, _ = self._get_scoring_func()
                 print("\nCross-validation summary:")
                 print(f"  Individual fold {metric_name} scores: {[f'{score:.4f}' for score in self.cv_scores_]}")
                 print(f"  Mean {metric_name}: {self.mean_cv_score_:.4f}")
@@ -778,30 +936,37 @@ class CrossValidator(ABC):
 
         # Predict on the holdout test set
         test_results_container = stateful_pipeline_fitted.predict(test_container, verbose=verbose)
+        scoring_func, _, needs_proba = self._get_scoring_func()
+        holdout_probabilities = None
+        if needs_proba:
+            holdout_probabilities = stateful_pipeline_fitted.predict_proba(test_container, verbose=verbose).data.values
 
         final_predictor = stateful_pipeline_fitted.predictive_transform
         pred_labels = test_results_container.data.values
         true_labels = self._extract_targets(final_predictor, test_results_container)
 
-        pred_labels, true_labels, scoring_container, _ = self._filter_scoring_inputs(
+        pred_labels, true_labels, scoring_container, scoring_mask = self._filter_scoring_inputs(
             pred_labels,
             true_labels,
             test_results_container,
             context="holdout",
         )
+        scoring_values = pred_labels
+        if needs_proba:
+            scoring_values = holdout_probabilities if scoring_mask is None else holdout_probabilities[scoring_mask]
 
         # Store the holdout container and filtered predictions for container-aware scorers
         self.holdout_container_ = scoring_container
         self.holdout_pred_labels_ = pred_labels
+        self.holdout_probabilities_ = scoring_values if needs_proba else holdout_probabilities
         self.holdout_true_labels_ = true_labels
         self.holdout_scoring_mask_ = None
 
         # Calculate and store final score using the selected scoring function
-        scoring_func, _ = self._get_scoring_func()
         if self._scoring_accepts_container:
-            self.holdout_score_ = scoring_func(self.holdout_true_labels_, self.holdout_pred_labels_, scoring_container)
+            self.holdout_score_ = scoring_func(self.holdout_true_labels_, scoring_values, scoring_container)
         else:
-            self.holdout_score_ = scoring_func(self.holdout_true_labels_, self.holdout_pred_labels_)
+            self.holdout_score_ = scoring_func(self.holdout_true_labels_, scoring_values)
 
         return self.holdout_score_
 
@@ -871,7 +1036,7 @@ class CrossValidator(ABC):
         # Check if this is a classification task
         final_predictor = self._get_final_predictor()
 
-        if final_predictor and not final_predictor.is_classifier:
+        if final_predictor and (not final_predictor.is_classifier or getattr(final_predictor, "is_multilabel", False)):
             raise ValueError("Confusion matrix is only available for classification tasks.")
 
         if self.holdout_pred_labels_ is None:
@@ -902,7 +1067,7 @@ class CrossValidator(ABC):
         # Check if this is a classification task
         final_predictor = self._get_final_predictor()
 
-        if final_predictor and not final_predictor.is_classifier:
+        if final_predictor and (not final_predictor.is_classifier or getattr(final_predictor, "is_multilabel", False)):
             raise ValueError("Confusion matrix is only available for classification tasks.")
 
         if self.holdout_pred_labels_ is None:
@@ -946,7 +1111,7 @@ class CrossValidator(ABC):
         Returns:
             Name of the metric (e.g., 'r2', 'mse', 'f1_weighted', 'custom')
         """
-        _, metric_name = self._get_scoring_func()
+        _, metric_name, _ = self._get_scoring_func()
         return metric_name
 
     @property
@@ -964,7 +1129,7 @@ class CrossValidator(ABC):
         Raises:
             ValueError: If no out-of-fold predictions available
         """
-        scoring_func, _ = self._get_scoring_func()
+        scoring_func, _, needs_proba = self._get_scoring_func()
 
         # If scorer needs container, we can't compute OOF score (predictions are from multiple folds)
         # Fall back to mean CV score instead
@@ -975,6 +1140,13 @@ class CrossValidator(ABC):
                 stacklevel=2,
             )
             return self.mean_cv_score_
+
+        if needs_proba:
+            if not self.oof_probabilities_:
+                raise ValueError("No out-of-fold probabilities available. Run cross_validate() first.")
+            all_probabilities = np.concatenate(self.oof_probabilities_)
+            all_true_labels = np.concatenate(self.true_labels_)
+            return scoring_func(all_true_labels, all_probabilities)
 
         return self._compute_oof_metric(scoring_func)
 
@@ -1076,7 +1248,7 @@ class CrossValidator(ABC):
         for predictor in self._iter_predictors(self._pipeline):
             final_predictor = predictor
 
-        if final_predictor and not final_predictor.is_classifier:
+        if final_predictor and (not final_predictor.is_classifier or getattr(final_predictor, "is_multilabel", False)):
             raise ValueError("Confusion matrix is only available for classification tasks.")
 
         if not self.oof_predictions_:
@@ -1104,7 +1276,7 @@ class CrossValidator(ABC):
         for predictor in self._iter_predictors(self._pipeline):
             final_predictor = predictor
 
-        if final_predictor and not final_predictor.is_classifier:
+        if final_predictor and (not final_predictor.is_classifier or getattr(final_predictor, "is_multilabel", False)):
             raise ValueError("Confusion matrix is only available for classification tasks.")
 
         if not self.oof_predictions_:
@@ -1202,7 +1374,7 @@ class CrossValidator(ABC):
         """
         # Check if this is a classification task
         final_predictor = self.pipeline.predictive_transform
-        if final_predictor and not final_predictor.is_classifier:
+        if final_predictor and (not final_predictor.is_classifier or getattr(final_predictor, "is_multilabel", False)):
             raise ValueError("Confusion matrix plotting is only available for classification tasks.")
 
         if use_holdout:
