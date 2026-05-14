@@ -41,7 +41,8 @@ nav:
       - Data Contract: concepts/data_contract.md
   - Tutorials:
       - tutorials/index.md
-      - Basic Pipeline Walkthrough: tutorials/basic-pipeline.md
+      - 5-Minute Core Quickstart: tutorials/quickstart.md
+      - Spectral Pipeline Walkthrough: tutorials/basic-pipeline.md
       - Reusable ML Patterns: tutorials/reusable-ml-patterns.md
   - Guides:
       - Using XDFlow With LLMs: guides/llm.md

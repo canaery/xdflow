@@ -24,12 +24,14 @@ The library is built around a small set of abstractions:
 - `xdflow.cv`: cross-validation orchestration and splitting strategies
 - `xdflow.transforms`: preprocessing, sklearn adapters, spectral transforms, and predictors
 - `xdflow.utils`: sampling, caching, target resolution, and plotting helpers
+- `examples/`: runnable scripts for public workflows
 
 ## Start here
 
 1. Read [Installation](installation.md) to set up the package and optional extras.
 2. Read [Concepts](concepts/index.md) for the runtime model and transform rules.
-3. Follow the [Basic Pipeline Walkthrough](tutorials/basic-pipeline.md) for an end-to-end example.
-4. Read [Reusable ML Patterns](tutorials/reusable-ml-patterns.md) for multilabel, weighting, and domain-transfer examples.
-5. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
-6. Use the [API Reference](api/index.md) for class and function details.
+3. Run the [5-Minute Core Quickstart](tutorials/quickstart.md) for a base-install example.
+4. Follow the [Spectral Pipeline Walkthrough](tutorials/basic-pipeline.md) for an end-to-end signal-processing example.
+5. Read [Reusable ML Patterns](tutorials/reusable-ml-patterns.md) for multilabel, weighting, and domain-transfer examples.
+6. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
+7. Use the [API Reference](api/index.md) for class and function details.

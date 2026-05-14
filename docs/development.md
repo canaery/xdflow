@@ -17,6 +17,7 @@ If you use the checked-in lockfile:
 ```bash
 uv sync --extra dev --extra docs
 uv run pytest
+uv run ruff check xdflow tests examples
 uv run mkdocs serve
 ```
 
@@ -35,6 +36,19 @@ Before submitting doc changes, run:
 ```bash
 uv run mkdocs build --strict
 ```
+
+## Read the Docs publishing
+
+Read the Docs uses `.readthedocs.yaml`, installs the `docs` extra from `pyproject.toml`, and builds the site with `mkdocs.yml`.
+
+To publish documentation updates:
+
+1. Add or edit pages under `docs/`.
+2. Add new public pages to the `nav` section in `mkdocs.yml`.
+3. Run `uv run mkdocs build --strict` locally.
+4. Push or merge to the branch configured as the Read the Docs default branch.
+
+The GitHub Actions docs job also runs `mkdocs build --strict`, so docs failures should be visible before tagging or publishing a release.
 
 ## Writing docs for new features
 

@@ -57,61 +57,72 @@ If you work with scientific data, you've probably hit these walls:
 
 ## Quick Example
 
-This example uses `MultiTaperTransform`, so install `xdflow[spectral]` or `xdflow[all]` before running it.
+This example works with the core install. A full runnable version lives at `examples/quickstart.py`.
 
 ```python
-import xdflow as xf
-from sklearn.decomposition import PCA
+import numpy as np
+import xarray as xr
 from sklearn.linear_model import LogisticRegression
-from xdflow.cv.kfold import KFoldValidator
+
+from xdflow.composite import Pipeline
+from xdflow.core import DataContainer
+from xdflow.cv import KFoldValidator
 from xdflow.transforms.basic_transforms import FlattenTransform
-from xdflow.transforms.cleaning import CARTransform
 from xdflow.transforms.normalization import ZScoreTransform
-from xdflow.transforms.sklearn_transform import SKLearnPredictor, SKLearnTransformer
-from xdflow.transforms.spectral import MultiTaperTransform
+from xdflow.transforms.sklearn_transform import SKLearnPredictor
 
-# Your data: xarray.DataArray with dims (trial, channel, time)
-# Coords include 'session', 'stimulus', etc.
-data_container = xf.DataContainer(your_xarray_data)
+rng = np.random.default_rng(0)
+stimuli = np.repeat(["rest", "tone", "odor"], 60)
+rng.shuffle(stimuli)
 
-freq_ranges = {"theta": [4, 8], "alpha": [8, 12], "beta": [12, 30], "gamma": [30, 58]}
+values = rng.normal(0.0, 0.8, size=(stimuli.size, 4, 25))
+values[stimuli == "tone", 1, 8:15] += 2.0
+values[stimuli == "odor", 2, 14:22] += 2.0
 
-# Build a pipeline: CAR → Z-score → Spectral features → PCA → Classifier
-pipeline = xf.Pipeline(
-    name="decode_stimulus",
+container = DataContainer(
+    xr.DataArray(
+        values,
+        dims=("trial", "channel", "time"),
+        coords={
+            "trial": np.arange(stimuli.size),
+            "channel": [f"ch{i}" for i in range(4)],
+            "time": np.linspace(-0.2, 0.8, 25),
+            "stimulus": ("trial", stimuli),
+        },
+    )
+)
+
+pipeline = Pipeline(
+    name="core_quickstart",
     steps=[
-        ("car", CARTransform(car_method="all")),
         ("zscore", ZScoreTransform(by_dim=["trial"])),
-        ("multitaper", MultiTaperTransform(
-            fs=data_container.attrs["sampling_frequency_hz"],
-            num_time_windows=4,
-            time_halfbandwidth_product=2,
-            avg_over_time_windows=True,
-            avg_over_freq_bands=True,
-            freq_ranges=freq_ranges,
-        )),
-        ("flatten", FlattenTransform(dims=("channel", "freq_band"))),
-        ("pca", SKLearnTransformer(
-            estimator_cls=PCA, sample_dim="trial",
-            output_dim_name="feature", n_components=30,
-        )),
-        ("logreg", SKLearnPredictor(
-            estimator_cls=LogisticRegression, sample_dim="trial",
-            target_coord="stimulus", max_iter=500,
-        )),
+        ("flatten", FlattenTransform(dims=("channel", "time"))),
+        (
+            "classifier",
+            SKLearnPredictor(
+                LogisticRegression,
+                sample_dim="trial",
+                target_coord="stimulus",
+                max_iter=500,
+            ),
+        ),
     ],
 )
 
-# Cross-validate with structure-aware semantics
-cv = KFoldValidator(n_splits=5, shuffle=True, random_state=0, test_size=0.2)
+cv = KFoldValidator(
+    n_splits=5,
+    shuffle=True,
+    random_state=0,
+    stratify_coord="stimulus",
+    scoring="f1_weighted",
+    verbose=False,
+)
 cv.set_pipeline(pipeline)
 
-score = cv.cross_validate(data_container, verbose=False)
+score = cv.cross_validate(container, verbose=False)
 print(f"Weighted F1: {score:.3f}")
 
-# Stateless transforms (CAR, z-score, spectral) computed once
-# Stateful transforms (PCA, classifier) refitted per fold
-# Metadata preserved throughout every step
+# Coordinates stay attached, and stateful steps are refit per fold.
 ```
 
 ---
@@ -143,8 +154,8 @@ cd xdflow
 uv sync --all-extras    # creates .venv and installs everything
 
 # Run commands via uv
-uv run pytest            # run tests
-uv run ruff check        # lint
+uv run pytest                         # run tests
+uv run ruff check xdflow tests examples  # lint
 
 # Or activate the venv directly
 source .venv/bin/activate
@@ -244,6 +255,7 @@ Build complex pipelines with:
 **Quick Links**:
 - [Data Contract](docs/concepts/data_contract.md) — understand the container + transform rules
 - [Installation & Setup](docs/installation.md)
+- [5-Minute Core Quickstart](docs/tutorials/quickstart.md)
 - [Core Concepts](docs/concepts/index.md)
 - [Tutorials](docs/tutorials/index.md)
 - [Using XDFlow With LLMs](docs/guides/llm.md)

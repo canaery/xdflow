@@ -98,7 +98,7 @@ pipeline = Pipeline(
     ],
 )
 
-cv = KFoldValidator(n_splits=5, test_size=0.2, stratify_coord="stimulus")
+cv = KFoldValidator(n_splits=5, test_size=0.2, stratify_coord="stimulus", verbose=False)
 cv.set_pipeline(pipeline)
 ```
 

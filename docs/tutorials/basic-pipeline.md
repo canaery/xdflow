@@ -1,6 +1,6 @@
-# Basic Pipeline Walkthrough
+# Spectral Pipeline Walkthrough
 
-This walkthrough mirrors the intent of the notebook in `docs/tutorials/basic_tutorial.ipynb`, but keeps the published documentation lightweight and RTD-friendly.
+This walkthrough mirrors the intent of the notebook in `docs/tutorials/basic_tutorial.ipynb`, but keeps the published documentation lightweight and RTD-friendly. For a base-install example, start with the [5-Minute Core Quickstart](quickstart.md).
 
 It uses `MultiTaperTransform`, so install `xdflow[spectral]` or `xdflow[all]` before running the example.
 
@@ -103,6 +103,7 @@ cv = KFoldValidator(
     random_state=0,
     test_size=0.2,
     scoring="f1_weighted",
+    verbose=False,
 )
 cv.set_pipeline(pipeline)
 

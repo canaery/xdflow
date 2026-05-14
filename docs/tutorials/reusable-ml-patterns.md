@@ -89,10 +89,11 @@ cv = SampledDomainKFoldValidator(
     label_sample_counts={"control": None},
     n_splits=5,
     random_state=0,
+    verbose=False,
 )
 cv.set_pipeline(pipeline)
 
-score = cv.cross_validate(data_container)
+score = cv.cross_validate(data_container, verbose=False)
 ```
 
 Sampling semantics:

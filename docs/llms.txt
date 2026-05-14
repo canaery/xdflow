@@ -6,7 +6,8 @@ Important docs for LLMs and coding agents:
 
 - Overview: /index/
 - Data contract: /concepts/data_contract/
-- Basic pipeline walkthrough: /tutorials/basic-pipeline/
+- 5-minute core quickstart: /tutorials/quickstart/
+- Spectral pipeline walkthrough: /tutorials/basic-pipeline/
 - Reusable ML patterns: /tutorials/reusable-ml-patterns/
 - Using XDFlow with LLMs: /guides/llm/
 - Core API: /api/core/
@@ -15,3 +16,4 @@ Important docs for LLMs and coding agents:
 - Transforms API: /api/transforms/
 
 Repository-level coding-agent instructions live in AGENTS.md.
+Runnable quickstart script: examples/quickstart.py.

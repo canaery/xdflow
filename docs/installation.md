@@ -46,6 +46,12 @@ This repository also includes a `uv.lock`, so a reproducible local setup can be 
 uv sync --extra dev --extra docs
 ```
 
+Run the core quickstart example from the repository root:
+
+```bash
+uv run python examples/quickstart.py
+```
+
 To run the spectral tutorial examples locally, include the spectral extra:
 
 ```bash
