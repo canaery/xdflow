@@ -58,65 +58,34 @@ def _set_nested_dict_value(dict_obj: dict[Any, Any], key_path: list[str], value:
 
 
 class Transform(ABC):
-    """
-    Abstract base class for all pipeline transformations.
+    """Base class for XDFlow processing steps.
 
-    This is the fundamental building block for all data processing steps.
-    Hyperparameters are set when the transform object is instantiated.
-    Core principle: Takes a DataContainer, performs an operation, and returns
-    a new, modified DataContainer.
+    A transform accepts a `DataContainer` and returns a new `DataContainer`.
+    Concrete subclasses implement `_transform`; stateful subclasses also
+    implement `_fit`. The public `fit`, `transform`, and `fit_transform` methods
+    provide common selection handling, optional timing output, history logging,
+    and the stateless/stateful execution contract used by `Pipeline` and
+    `CrossValidator`.
 
-    Hard rules:
-    - Label-based Operations: When feasible, implementations should operate on dimension names
-      (e.g., data.mean(dim='time')) rather than positional axes
-    - Data is immutable: Transforms should not modify the original data, but rather create a new DataContainer with the transformed data.
-      New transforms should test for this in test_transform_immutability.py
+    Implementations should prefer named dimensions over positional axes. For
+    example, use `data.mean(dim="time")` instead of assuming the time axis is at
+    a fixed integer position. Transforms should not mutate their input container;
+    return a new container or an immutable view consistent with xarray behavior.
 
-    Soft rules:
-    - Auto-generated Labels: When creating new dimensions, generate descriptive,
-      automatic names for them when possible
-    - Modify data not coords: In general, Transform should modify the data attribute of the DataContainer, not the coords.
-      Transforms may reorganize the data which coincides with coords.
+    Class attributes:
+        is_stateful: Whether the transform learns state from `fit`.
+        input_dims: Required input dimensions. An empty tuple means the transform
+            accepts dynamic input dimensions.
+        output_dims: Output dimensions when known statically. An empty tuple
+            means subclasses must infer them with `get_expected_output_dims`.
 
-    Required Class Attributes (must be defined by each concrete subclass):
-        is_stateful: bool - Whether this transform requires fitting to data. Especially relevant for CV
-        input_dims: tuple[str, ...] - Expected input dimension names (empty tuple means no constraint)
-        output_dims: tuple[str, ...] - Expected output dimension names (empty tuple means dynamic)
-
-    Cloning and authoring policy
-    ----------------------------
-    - Initialization contract: define all hyperparameters as explicit __init__
-      keyword arguments and store them as public attributes with matching names
-      (e.g., self.foo for __init__(..., foo=...)). Do not mutate hyperparameters
-      after initialization.
-    - Fitted state isolation: store any learned/transient state outside the
-      constructor in private/non-constructor attributes (e.g., self._stats). These
-      must not appear in the __init__ signature so that cloning produces unfitted
-      instances.
-    - get_params/clone: the default get_params returns public attributes; the
-      default clone constructs a new instance using only parameters present in the
-      __init__ signature. If you override get_params, return only hyperparameters,
-      not fitted state. For composites, use CompositeTransform which performs
-      recursive cloning of child transforms via their clone() implementations.
-    - No side-channel config: avoid deriving constructor hyperparameters from
-      external mutable state at fit time; clone should reproduce initialization
-      deterministically.
-
-    kwargs and cooperative multiple inheritance
-    ------------------------------------------
-    - The base Transform accepts **kwargs solely to support cooperative
-      multiple inheritance (e.g., SKLearnPredictor(SKLearnTransform, Predictor)).
-    - Rules to avoid breaking clone():
-      1) Do not silently consume novel parameters. Every real hyperparameter
-         must be an explicit __init__ argument and stored on self.
-      2) If a subclass forwards **kwargs to super().__init__, it must also
-         separate and store its own hyperparameters explicitly first.
-      3) get_params() should only surface public hyperparameters, not fitted
-         state; clone() filters to the subclass __init__ signature to ensure
-         only constructor-declared params are reconstructed.
-      4) If you wrap external estimators (e.g., sklearn), keep their
-         constructor kwargs in a dedicated attribute (e.g., self._estimator_kwargs)
-         and include them in your clone() override so they are preserved.
+    Authoring notes:
+        Define constructor hyperparameters as explicit `__init__` arguments and
+        store them on public attributes with matching names. Store learned state
+        in private attributes that are not constructor parameters, so `clone`
+        creates a fresh unfitted instance. `**kwargs` exists only for cooperative
+        multiple inheritance; subclasses should not silently consume new
+        hyperparameters through it.
     """
 
     # These should be overridden by each subclass
@@ -133,21 +102,21 @@ class Transform(ABC):
         transform_drop_sel: dict | None = None,
         **kwargs,
     ):
-        """
-        Initializes the Transform.
+        """Initialize common transform selection options.
 
-        The `sel` and `drop_sel` arguments are used to subset the data.
-        The output will only include the subsetted data.
-
-        The `transform_sel` and `transform_drop_sel`  are used to subset the data specifically for fitting/transforming.
-        Fitting/transforming will only be applied to the subsetted data, leaving the remaining data intact.
-        The output will include the transformed subsetted data and the untransformed remaining data.
+        `sel` and `drop_sel` subset the whole input before the transform runs, so
+        the output contains only the selected data. `transform_sel` and
+        `transform_drop_sel` select only the portion to fit or transform, then
+        write that transformed portion back into the original array. Partial
+        write-back is only allowed for transforms that preserve dims, sizes, and
+        coordinates.
 
         Args:
-            sel: A dictionary to select a subset of data.
-            drop_sel: A dictionary to drop a subset of data.
-            transform_sel: A dictionary to select a subset of data for transformation.
-            transform_drop_sel: A dictionary to drop a subset of data for transformation.
+            sel: Label selection passed to xarray `.sel` before transforming.
+            drop_sel: Label selection passed to xarray `.drop_sel` before
+                transforming.
+            transform_sel: Label selection used only for the transformed portion.
+            transform_drop_sel: Labels to exclude from the transformed portion.
         """
         # kwargs are accepted for cooperative inheritance but not used by Transform itself
         self.sel = sel
@@ -489,13 +458,17 @@ class Transform(ABC):
 
 
 class Predictor(Transform, ABC):
-    """
-    Abstract base class for all estimators that make predictions from transformed data.
+    """Base class for transforms that learn targets and produce predictions.
 
-    This class uses the template method pattern. It provides the final `predict`
-    and `predict_proba` methods, which handle the structuring of the output
-    DataContainer. Subclasses must implement the `_predict` and `_predict_proba`
-    methods to perform the core prediction logic.
+    Predictors are stateful transforms. During fitting, single-label classifier
+    targets are encoded with a `LabelEncoder`; regressors and multilabel
+    classifiers use their target coordinates directly. Subclasses implement the
+    estimator-specific `_predict` method and optionally `_predict_proba`.
+
+    Public prediction methods return `DataContainer` objects whose sample
+    coordinate is preserved from `sample_dim`. Classifier outputs are decoded
+    back to original labels when possible, while probability outputs are aligned
+    to the fitted global class order.
     """
 
     is_stateful: bool = True  # All predictors require training
@@ -518,19 +491,25 @@ class Predictor(Transform, ABC):
         calibrated_thresholds: np.ndarray | list[float] | None = None,
         **kwargs,
     ):
-        """
+        """Initialize common prediction metadata.
+
         Args:
-            sample_dim: Name of the sample dimension.
-            target_coord: Name of the target coordinate (string) or list of target coordinate names (for multi-output).
-            is_classifier: Whether the estimator is a classifier (True) or regressor (False).
-            encoder: The encoder to use for the predictor. Should be set before predict or transform.
-            proba: Whether to return the prediction as probabilities (trials, stimuli) or as a single encoding (trials)
-            is_multilabel: Whether this is a multilabel classification task. When True, target_coord resolves
-                to one binary coordinate per output and no LabelEncoder is used.
-            sel: A dictionary to select a subset of data.
-            drop_sel: A dictionary to drop a subset of data.
-            transform_sel: A dictionary to select a subset of data for transformation.
-            transform_drop_sel: A dictionary to drop a subset of data for transformation.
+            sample_dim: Dimension whose entries are independent samples.
+            target_coord: Target coordinate name, list of target coordinate
+                names, or a pattern resolved by subclasses during fit.
+            is_classifier: Whether predictions are categorical labels instead
+                of continuous values.
+            encoder: Optional label encoder for single-label classifiers. If
+                omitted, a new encoder is created for classifier predictors.
+            proba: Whether `transform` should return probabilities instead of
+                hard predictions.
+            is_multilabel: Whether classification targets are multiple binary
+                target coordinates. Multilabel classifiers do not use a
+                `LabelEncoder`.
+            sel: Label selection applied before fitting or transforming.
+            drop_sel: Label selection dropped before fitting or transforming.
+            transform_sel: Label selection used only for partial transformation.
+            transform_drop_sel: Labels excluded from partial transformation.
             calibrated_thresholds: Optional multilabel decision thresholds, one per output.
         """
         allow_unknown_targets = kwargs.pop("allow_unknown_targets", self.allow_unknown_targets)

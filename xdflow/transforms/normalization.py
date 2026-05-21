@@ -7,11 +7,16 @@ from xdflow.utils.sampling import get_container_by_conditions
 
 
 class DemeanTransform(Transform):
-    """
-    Subtract the mean per specified dimension.
+    """Subtract a mean while preserving selected grouping dimensions.
 
-    E.g. if your input dims are ("trial", "channel", "time"), and you set by_dim to "channel",
-    then the data will be demeaned per channel by subtracting the mean of trial and time per channel.
+    `by_dim` names the dimensions whose labels should remain distinct while the
+    mean is computed over all other dimensions. For data with dimensions
+    `("trial", "channel", "time")`, `by_dim="channel"` subtracts a separate
+    channel mean computed across trials and time.
+
+    By default the mean is computed from the data being transformed. With
+    `use_fit=True`, the mean is learned during `fit` and reused during
+    `transform`, which is the usual choice inside cross-validation.
     """
 
     input_dims: tuple[str, ...] = ()
@@ -88,12 +93,16 @@ class DemeanTransform(Transform):
 
 
 class ZScoreTransform(Transform):
-    """
-    Apply Z-score normalization per specified dimension.
+    """Apply z-score normalization while preserving grouping dimensions.
 
-    This transform standardizes the data to have a mean of 0 and a standard
-    deviation of 1 per specified dimension.
+    `by_dim` names the dimensions whose labels should remain distinct while the
+    mean and standard deviation are computed over all other dimensions. For data
+    with dimensions `("trial", "channel", "time")`, `by_dim="channel"`
+    normalizes each channel using statistics computed across trials and time.
 
+    By default statistics are computed from the data being transformed. With
+    `use_fit=True`, statistics are learned during `fit` and reused during
+    `transform`, which avoids validation leakage inside cross-validation.
     """
 
     input_dims: tuple[str, ...] = ()
@@ -110,7 +119,7 @@ class ZScoreTransform(Transform):
         transform_sel: dict[str, Any] | None = None,
         transform_drop_sel: dict[str, Any] | None = None,
     ):
-        """
+        """Initialize a z-score transform.
 
         Args:
             by_dim: The dimension or dimensions along which to compute the mean and std.
@@ -122,10 +131,6 @@ class ZScoreTransform(Transform):
             drop_sel: A dictionary to drop a subset of data for transformation.
             transform_sel: A dictionary to select a subset of data for transformation.
             transform_drop_sel: A dictionary to drop a subset of data for transformation.
-
-        E.g. if your input dims are ("trial", "channel", "time"), and you set by_dim to "channel",
-        then the data will be z-scored per channel by subtracting the mean of trial and time per channel
-        and dividing by the std of trial and time per channel.
         """
 
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)

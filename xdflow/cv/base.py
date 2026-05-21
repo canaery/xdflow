@@ -68,27 +68,21 @@ def _cleanup_torch_memory() -> None:
 
 
 class CrossValidator(ABC):
-    """
-    Abstract base class for orchestrating cross-validation experiments.
+    """Base class for evaluating a predictive pipeline with held-out data.
 
-    This class acts as the orchestrator for running a full cross-validation
-    experiment. It takes a complete analysis Pipeline and runs it according
-    to a specific splitting strategy (e.g., K-Fold, Leave-One-Session-Out).
+    A cross-validator owns the train/validation/holdout splitting strategy and
+    evaluates a complete `Pipeline`. Stateless pipeline steps can be run once
+    before fold splitting, while stateful steps are cloned and fitted on each
+    fold's training data. This keeps expensive deterministic preprocessing out
+    of the per-fold loop when possible.
 
-    The implementation automatically detects and separates stateless and stateful
-    pipeline components for optimal execution:
-    - Stateless transforms: Run once on entire dataset before CV
-    - Stateful transforms: Re-fitted on each CV fold's training data
+    Results are stored on the instance after evaluation, including fold scores,
+    out-of-fold predictions, optional probabilities, and holdout predictions.
+    Scorers may accept either `(y_true, y_pred)` or
+    `(y_true, y_pred, container)` when coordinate-aware scoring is needed.
 
-    Features:
-    - Simple single-pipeline API with automatic optimization
-    - Robust train/validation/test splitting
-    - Out-of-fold prediction tracking for analysis
-    - Unified API for evaluation, fitting, and prediction
-
-    Subclasses must implement the following methods:
-    - _split_holdout(container: DataContainer) -> tuple[np.ndarray, np.ndarray]
-    - _get_splits(container: DataContainer, indices_to_split: np.ndarray) -> Iterator[tuple[np.ndarray, np.ndarray]]
+    Subclasses define only the split policy by implementing `_split_holdout` and
+    `_get_splits`.
     """
 
     _STRING_SCORERS = {
@@ -153,8 +147,7 @@ class CrossValidator(ABC):
         exclude_offsets_from_scoring: bool = False,
         verbose: bool = True,
     ):
-        """
-        Initialize CrossValidator.
+        """Initialize scoring, caching, and split-independent CV options.
 
         Args:
             pooling_score_weight: Interpolation factor between the average fold
@@ -164,17 +157,10 @@ class CrossValidator(ABC):
             use_stateful_fit_cache: Whether to cache stateful transforms during CV.
             release_fold_memory: Whether to aggressively release per-fold objects and
                 clear PyTorch CUDA caches after each fold.
-            scoring: Scoring metric to use for evaluation. If None, auto-selects:
-                - 'f1_weighted' for classification tasks
-                - 'r2' for regression tasks
-
-                Can be:
-                - String: 'r2', 'mse', 'rmse', 'mae', 'f1_weighted', etc.
-                - Callable: Function with signature (y_true, y_pred) -> float
-                  OR (y_true, y_pred, container) -> float for accessing coordinates.
-                  The container parameter provides access to the validation/test
-                  DataContainer, allowing custom scoring based on coordinates like
-                  concentration_bin, session, etc.
+            scoring: Metric name or callable. If None, classification defaults
+                to `"f1_weighted"` and regression defaults to `"r2"`. Callable
+                scorers may accept `(y_true, y_pred)` or
+                `(y_true, y_pred, container)`.
             scoring_needs_proba: Whether a custom scorer expects probabilities from
                 predict_proba instead of hard predictions.
             exclude_intertrial_from_scoring: If True, automatically remove any trials whose

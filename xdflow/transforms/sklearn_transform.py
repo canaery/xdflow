@@ -18,23 +18,22 @@ from xdflow.utils.target_utils import extract_target_array, resolve_target_coord
 
 
 class SKLearnTransform(Transform, SampleWeightMixin):
-    """
-    A wrapper that converts a scikit-learn compatible estimator (supervised or
-    unsupervised) into a Transform, assuming the input data is 2D.
+    """Adapt a scikit-learn estimator to the XDFlow transform API.
 
-    Its constructor takes an uninitialized estimator class and its parameters
-    directly. Any keyword arguments not used by this wrapper are passed to the
-    estimator's constructor.
+    The wrapped estimator receives a two-dimensional matrix with samples along
+    `sample_dim`. If `target_coord` is provided, the coordinate values are
+    extracted and passed as `y` during fit; otherwise the estimator is treated as
+    unsupervised. Sample weights can be forwarded from a coordinate when the
+    estimator's `fit` method accepts `sample_weight`.
 
-    Notes on cooperative multiple inheritance and kwargs
-    ----------------------------------------------------
-    - This class participates in cooperative multiple inheritance with
-      Predictor via SKLearnPredictor(SKLearnTransform, Predictor).
-    - It forwards **kwargs up the MRO to allow Predictor to receive its
-      parameters (e.g., sample_dim, target_coord) while passing estimator
-      kwargs to the wrapped estimator. Do not consume arbitrary kwargs here;
-      store wrapper hyperparameters explicitly and keep estimator kwargs in
-      self._estimator_kwargs so clone() can reconstruct the estimator.
+    Keyword arguments not owned by the wrapper or its parent classes are passed
+    to the estimator constructor and preserved for cloning.
+
+    Notes:
+        This class participates in cooperative multiple inheritance with
+        `Predictor` through `SKLearnPredictor`. Wrapper hyperparameters should be
+        explicit attributes; estimator kwargs are stored separately in
+        `_estimator_kwargs`.
     """
 
     is_stateful: bool = True
@@ -52,23 +51,19 @@ class SKLearnTransform(Transform, SampleWeightMixin):
         drop_sel: dict[str, Any] | None = None,
         **kwargs: Any,
     ):
-        """
-        Initializes the wrapper and the wrapped scikit-learn estimator.
+        """Initialize the wrapper and the underlying estimator.
 
         Args:
-            estimator_cls (Type[BaseEstimator]): The uninitialized scikit-learn
-                estimator class (e.g., PCA, LogisticRegression).
-            sample_dim (str): The name of the dimension that corresponds to samples.
-            target_coord (str, optional): The name of the coordinate containing the
-                target variable `y` for supervised fitting. If None, the estimator
-                is treated as unsupervised. Defaults to None.
-            _estimator_instance (BaseEstimator, optional): A pre-initialized estimator.
-                If provided, `estimator_cls` and its kwargs are ignored. Defaults to None.
-            sample_weight_coord (str | None, optional): Name of the coordinate containing
-                optional sample weights to forward to ``fit``. Set to None to disable.
-            **kwargs (Any): All other keyword arguments are passed
-                to the parent constructor and the constructor of `estimator_cls`.
-                'sel' and 'drop_sel' are passed to the parent constructor, the rest are passed to the estimator_cls.
+            estimator_cls: Uninitialized scikit-learn estimator class.
+            sample_dim: Dimension whose entries are samples.
+            target_coord: Optional coordinate used as supervised target `y`.
+            _estimator_instance: Pre-built estimator used internally by
+                `SKLearnPredictor` after task-type wrapping.
+            sample_weight_coord: Coordinate containing optional sample weights.
+                Set to None to disable sample-weight forwarding.
+            sel: Label selection applied before fitting or transforming.
+            drop_sel: Label selection dropped before fitting or transforming.
+            **kwargs: Parent-class options and estimator constructor arguments.
         """
         # For cooperative inheritance, we pass all kwargs up the chain.
         # for SKLearnPredictor, SKLearnTransform is initialized first, then Predictor.
@@ -289,9 +284,12 @@ class SKLearnTransform(Transform, SampleWeightMixin):
 
 
 class SKLearnTransformer(SKLearnTransform):
-    """
-    A wrapper that converts a scikit-learn compatible transformer into a Transform.
-    It assumes the input data is 2D and the estimator has a 'transform' method.
+    """Adapt a scikit-learn transformer to return a `DataContainer`.
+
+    The estimator must implement `fit` and `transform`. Input data is arranged as
+    `(sample_dim, features)`. The transformed matrix is returned with
+    `sample_dim` preserved and a new feature-like dimension named by
+    `output_dim_name`.
     """
 
     input_dims: tuple[str, ...] = ()
@@ -307,20 +305,17 @@ class SKLearnTransformer(SKLearnTransform):
         drop_sel: dict[str, Any] | None = None,
         **kwargs: Any,
     ):
-        """
-        Initializes the wrapper.
+        """Initialize a transformer wrapper.
 
         Args:
-            estimator_cls (Type[BaseEstimator]): The uninitialized scikit-learn
-                estimator class (e.g., PCA).
-            sample_dim (str): The name of the dimension that corresponds to samples.
-            target_coord (str, optional): The name of the coordinate containing the
-                target variable `y` for supervised fitting. If None, the estimator
-                is treated as unsupervised. Defaults to None.
-            output_dim_name (str): The name for the new dimension created by the transformer.
-            **kwargs (Any): All other keyword arguments are passed
-                to the parent constructor and the constructor of `estimator_cls`.
-                sel and drop_sel are passed to the parent constructor, the rest are passed to the estimator_cls.
+            estimator_cls: Uninitialized scikit-learn transformer class.
+            sample_dim: Dimension whose entries are samples.
+            target_coord: Optional supervised target coordinate for estimators
+                whose `fit` accepts `y`.
+            output_dim_name: Name of the non-sample output dimension.
+            sel: Label selection applied before fitting or transforming.
+            drop_sel: Label selection dropped before fitting or transforming.
+            **kwargs: Parent-class options and estimator constructor arguments.
         """
         super().__init__(
             estimator_cls=estimator_cls,
@@ -366,13 +361,16 @@ class SKLearnTransformer(SKLearnTransform):
 
 
 class SKLearnPredictor(SKLearnTransform, Predictor):
-    """
-    A wrapper that converts a scikit-learn compatible classifier into a Predictor.
-    It implements the core prediction logic by calling the estimator's
-    `predict` and `predict_proba` methods.
+    """Adapt a scikit-learn estimator to the XDFlow predictor API.
 
-    It can also be used as a Transform within a pipeline, where its
-    `.transform()` behavior is configurable via the `proba` argument.
+    The estimator is fitted on a two-dimensional matrix plus target coordinate
+    values, then exposed through `predict`, `predict_proba`, and `transform`.
+    Classifier or regressor mode is auto-detected from the estimator when
+    possible, or can be supplied with `is_classifier`.
+
+    Multi-target regression and multilabel classification can be wrapped with
+    scikit-learn's multi-output estimators by setting `multi_output=True`, or by
+    passing multiple target coordinates where wrapping can be inferred.
     """
 
     def __init__(
@@ -390,36 +388,25 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
         sample_weight_coord: str | None = "sample_weight",
         **kwargs: Any,
     ):
-        """
-        Initializes the wrapper.
+        """Initialize a predictor wrapper.
 
         Args:
-            estimator_cls (Type[BaseEstimator]): The uninitialized scikit-learn
-                estimator class (e.g., LGBMClassifier, Ridge, LGBMRegressor).
-            sample_dim (str): The name of the dimension that corresponds to samples.
-            target_coord (str or list of str): The name of the coordinate containing the
-                target variable `y` for supervised fitting. Can be:
-                - A single coordinate name (e.g., 'oil_dilution')
-                - A list of coordinate names (e.g., ['stim_0_concentration', 'stim_1_concentration'])
-                - A pattern with wildcards (e.g., '*_concentration' to auto-discover all concentration targets)
-                Multi-target classification requires is_multilabel=True.
-            encoder (LabelEncoder): The encoder to use for the predictor. Should be set before predict or transform.
-                Only valid for classifiers.
-            proba (bool): Whether to call the estimator's `.predict_proba()` method for transform.
-                If False, calls the estimator's `.predict()` method.
-            is_classifier (bool, optional): Manually specify if this is a classifier (True) or regressor (False).
-                If None, auto-detects based on estimator's _estimator_type attribute.
-            multi_output (bool): If True, automatically wraps the estimator in MultiOutputRegressor
-                for regressors or MultiOutputClassifier for multilabel classifiers. Default: False.
-
-                When multi_output=True, access the underlying estimators via:
-                - predictor.estimator.estimator: The base estimator (e.g., LGBMRegressor)
-                - predictor.estimator.estimators_: List of fitted estimators (one per target)
-            is_multilabel (bool): Whether targets are multiple binary target coordinates. Requires
-                is_classifier=True and uses no LabelEncoder.
-            sample_weight_coord (str, optional): The name of the coordinate containing the sample weights.
-                Default: "sample_weight".
-            **kwargs (Any): All other keyword arguments are passed to the estimator constructor.
+            estimator_cls: Uninitialized scikit-learn estimator class.
+            sample_dim: Dimension whose entries are samples.
+            target_coord: Target coordinate name, target coordinate list, or
+                wildcard pattern resolved during fit.
+            encoder: Optional label encoder for single-label classifiers.
+            proba: Whether `transform` should call `predict_proba` instead of
+                `predict`.
+            is_classifier: Explicitly set classifier or regressor mode. If None,
+                task type is inferred from the estimator.
+            multi_output: Whether to wrap the estimator for multi-target
+                regression or multilabel classification.
+            is_multilabel: Whether targets are multiple binary coordinates.
+            sel: Label selection applied before fitting or transforming.
+            drop_sel: Label selection dropped before fitting or transforming.
+            sample_weight_coord: Coordinate containing optional sample weights.
+            **kwargs: Estimator constructor arguments plus parent-class options.
         """
         parent_param_names = collect_super_init_param_names(type(self), SKLearnTransform)
         # Separate kwargs for the estimator from the rest

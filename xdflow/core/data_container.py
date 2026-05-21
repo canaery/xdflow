@@ -9,40 +9,42 @@ import xarray as xr
 
 
 class TransformError(Exception):
-    """Custom exception for errors that occur during a pipeline transformation."""
+    """Error raised when a transform or pipeline step fails."""
 
     pass
 
 
 class DataContainer:
-    """
-    A validated wrapper around an xarray.DataArray.
-    Ensures that the data conforms to the pipeline's expectations.
+    """Wrap an `xarray.DataArray` as the standard XDFlow data object.
 
-    Operations on the data should be directly called on DataContainer rather than DataContainer.data.
-    DataArray native methods will be passed through and rewrapped in a DataContainer.
+    `DataContainer` is the object passed between transforms, predictors, and
+    cross-validation utilities. It keeps labeled array data as the source of
+    truth, preserves xarray dimensions and coordinates, and initializes the
+    `data_history` attribute used to track pipeline operations.
 
-    This class acts as a standardized, immutable container for experimental data.
-    It is a wrapper class that holds an xarray.DataArray, ensuring that any data
-    passed through the pipeline conforms to a required structure.
+    Most xarray methods can be called directly on the container. Methods that
+    return a new `xarray.DataArray` are rewrapped as a new `DataContainer`, so
+    calls such as `container.sel(...)` or `container.mean(...)` remain inside
+    the XDFlow container contract.
 
-    Core Features:
-    - Immutability: Every transformation returns a new DataContainer instance
-    - Validation: Constructor can optionally enforce required coordinates
-    - History: Tracks all applied transforms for traceability
+    The wrapped array is shallow-copied on construction. Transforms should still
+    treat containers as immutable and return new containers instead of mutating
+    their inputs.
     """
 
     def __init__(self, data: xr.DataArray, required_coords: list[str] | None = None):
-        """
-        Initialize DataContainer with optional validation and history tracking.
+        """Initialize a container from an xarray data array.
 
         Args:
-            data: xarray.DataArray with labeled dimensions and coordinates
-            required_coords: Optional list of coordinate names to validate.
-                           If None, no validation is performed.
+            data: Array with labeled dimensions and coordinates.
+            required_coords: Optional coordinate names to check for. Missing
+                coordinates emit warnings rather than raising, which lets callers
+                decide how strict to be for a given pipeline.
 
-        Raises:
-            ValueError: If required coordinates are missing (when required_coords is specified)
+        Notes:
+            The constructor ensures `data.attrs["data_history"]` exists. It does
+            not validate dimension names or coordinate schemas beyond
+            `required_coords`.
         """
         if required_coords is not None:
             for coord in required_coords:

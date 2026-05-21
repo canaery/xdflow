@@ -7,19 +7,20 @@ from xdflow.utils.cache_utils import cache_result, get_pipeline_cache_key_dict
 
 
 class Pipeline(CompositeTransform):
-    """
-    Orchestrates a sequence of named Transforms using the Composite Design Pattern.
+    """Run named transforms in sequence.
 
-    The Pipeline class is itself a Transform that orchestrates the workflow by chaining
-    named Transform steps together. It provides error handling, runtime validation, and
-    uses recursive delegation to pass operations to its children.
+    A pipeline is itself a transform, so it can be nested inside other
+    composites or passed directly to `CrossValidator`. Each step receives the
+    `DataContainer` produced by the previous step. `fit_transform` fits stateful
+    steps as the data flows forward; `transform` assumes stateful steps have
+    already been fitted.
 
-    Features:
-    - Named steps for easy reference and debugging
-    - Runtime dimension validation
-    - Recursive delegation following Composite pattern
-    - Context passing through **kwargs
-    - Comprehensive error handling with detailed messages
+    If the final step is a `Predictor`, the pipeline also exposes `predict`,
+    `predict_proba`, and `get_labels`. In that case all steps before the final
+    predictor are applied first, then prediction is delegated to the predictor.
+
+    Step names must be unique. Optional `expected_input_dims` can be used to
+    validate the dimensions seen by each step at runtime.
     """
 
     def __init__(
@@ -29,14 +30,15 @@ class Pipeline(CompositeTransform):
         expected_input_dims: dict[str, tuple[str, ...]] = None,
         use_cache: bool = False,
     ):
-        """
-        Initialize Pipeline with named steps and optional validation.
+        """Create a named pipeline from transform steps.
 
         Args:
-            name: Pipeline name for identification
-            steps: List of (step_name, transform) tuples
-            expected_input_dims: Optional dict mapping step names to expected input dimensions
-            use_cache: Whether to cache the pipeline's output for faster re-use
+            name: Human-readable pipeline name.
+            steps: Ordered `(step_name, transform)` pairs or `TransformStep`
+                objects.
+            expected_input_dims: Optional mapping from each step name to the
+                dimensions expected immediately before that step runs.
+            use_cache: Whether to cache `fit_transform` output for reuse.
         """
         self.name = name
 

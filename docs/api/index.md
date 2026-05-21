@@ -1,13 +1,13 @@
 # API Reference
 
-The API pages document the stable, core parts of the library that build without optional runtime extras: labeled containers, dimension-aware transforms, composable pipelines, validators, and utilities for target and metadata handling.
+These pages combine short orientation notes with generated API documentation from `mkdocstrings`.
 
 Included here:
 
 - core container and transform interfaces
 - composition primitives
 - cross-validation orchestrators
-- common transforms used by the current tutorial flow
-- utility helpers that are part of the public package surface
+- common transforms and sklearn adapters
+- utility helpers for sampling, caching, targets, plotting, and spectral filters
 
-Some advanced modules in `xdflow.transforms` depend on optional extras such as LightGBM, Optuna integrations, or domain-adaptation packages. Those modules are intentionally not imported into the published API site unless their dependency set is part of the docs build.
+Some modules depend on optional runtime extras. The generated API pages avoid importing optional-heavy modules unless they are safe under the standard docs dependency set.

@@ -32,6 +32,24 @@ markdown_extensions:
 
 plugins:
   - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - .
+          options:
+            docstring_style: google
+            docstring_options:
+              warnings: false
+              warn_missing_types: false
+              warn_unknown_params: false
+            members_order: source
+            merge_init_into_class: true
+            separate_signature: true
+            show_root_full_path: false
+            show_root_heading: true
+            show_signature_annotations: true
+            show_source: true
 
 nav:
   - Overview: index.md

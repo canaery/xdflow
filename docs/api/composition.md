@@ -1,55 +1,35 @@
 # Composition API
 
-Composition APIs define how transforms are combined while keeping the pipeline visible to validators and tuners. Use them for branching, per-group fitting, optional steps, and ensembles when those choices should participate in split, refit, and cache planning.
+Composition APIs define how transforms are combined while keeping the pipeline visible to validators and tuners. Use them for sequential pipelines, branching, per-group fitting, optional steps, and ensembles when those choices should participate in split, refit, and cache planning.
 
-## `xdflow.composite.pipeline`
+## Base Composition Types
 
-Primary class:
+::: xdflow.composite.base.TransformStep
 
-- `Pipeline`: sequential composition of named steps
+::: xdflow.composite.base.CompositeTransform
 
-Use it when transforms should run in order and each step consumes the previous step's output. Named steps give validators and tuners a graph they can clone, split, cache, and refit.
+## Pipelines
 
-```python
-from xdflow.composite.pipeline import Pipeline
-```
+::: xdflow.composite.pipeline.Pipeline
 
-## `xdflow.composite.group_apply`
+## Grouped Application
 
-Primary class:
+::: xdflow.composite.group_apply.GroupApplyTransform
 
-- `GroupApplyTransform`: clones and applies a transform independently per group coordinate
+## Parallel Branches
 
-Typical use cases:
+::: xdflow.composite.transform_union.TransformUnion
 
-- fit preprocessing per subject
-- fit a model per session
-- aggregate unseen groups with configured fallback behavior
-- avoid hand-written loops over metadata groups
+::: xdflow.composite.transform_union.UnionWithInput
 
-## `xdflow.composite.transform_union`
+## Conditional Branches
 
-Primary classes:
+::: xdflow.composite.switch_transform.SwitchTransform
 
-- `TransformUnion`: run parallel branches and concatenate outputs
-- `UnionWithInput`: same as `TransformUnion` but also keeps the original input branch
+::: xdflow.composite.switch_transform.OptionalTransform
 
-Use these when several feature extractors should share the same fold and caching rules.
+## Ensembles
 
-## `xdflow.composite.switch_transform`
+::: xdflow.composite.ensemble.EnsembleMember
 
-Primary classes:
-
-- `SwitchTransform`: choose between transform branches
-- `OptionalTransform`: enable or disable a transform through configuration
-
-Use these for ablations and architecture comparisons without moving conditional logic outside the pipeline.
-
-## `xdflow.composite.ensemble`
-
-Primary classes:
-
-- `EnsemblePredictor`
-- `EnsembleMember`
-
-This module provides weighted combination of multiple predictors, including optional score-based weighting.
+::: xdflow.composite.ensemble.EnsemblePredictor

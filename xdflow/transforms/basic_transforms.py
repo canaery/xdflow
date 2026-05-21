@@ -450,11 +450,11 @@ class BalanceClassWeightTransform(Transform):
 
 
 class AverageTransform(Transform):
-    """
-    Averages data along one or more specified dimensions.
+    """Average data over one or more dimensions.
 
-    This transform computes the mean of the data array along the given dimension(s),
-    effectively removing them from the data's shape.
+    The named dimensions are reduced with `xarray.DataArray.mean`, so their
+    coordinate values are removed from the result and all other dimensions are
+    preserved. Attributes are kept on the resulting array.
     """
 
     is_stateful: bool = False
@@ -465,11 +465,12 @@ class AverageTransform(Transform):
     def __init__(
         self, dims: str | tuple[str, ...], sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None
     ):
-        """
-        Initializes the AverageTransform.
+        """Initialize an averaging transform.
 
         Args:
-            dims: The dimension or tuple of dimensions to average over.
+            dims: Dimension name or dimension names to average over.
+            sel: Label selection applied before averaging.
+            drop_sel: Label selection dropped before averaging.
         """
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.dims = (dims,) if isinstance(dims, str) else dims
@@ -508,11 +509,11 @@ class AverageTransform(Transform):
 
 
 class FlattenTransform(Transform):
-    """
-    Flattens (stacks) multiple dimensions into a single new dimension. 🥞
+    """Stack multiple dimensions into one new dimension.
 
-    The new dimension is named automatically based on the dimensions being
-    flattened (e.g., 'flat_dim1__dim2').
+    Flattening uses `xarray.DataArray.stack`, so the new dimension receives a
+    pandas `MultiIndex` coordinate containing the original coordinate labels.
+    The new dimension is named `flat_<dim1>__<dim2>`.
     """
 
     is_stateful: bool = False
@@ -522,11 +523,12 @@ class FlattenTransform(Transform):
     def __init__(
         self, dims: tuple[str, ...], sel: dict[str, Any] | None = None, drop_sel: dict[str, Any] | None = None
     ):
-        """
-        Initializes the FlattenTransform.
+        """Initialize a flattening transform.
 
         Args:
-            dims: A tuple of dimension names to flatten into one.
+            dims: At least two dimension names to stack into one.
+            sel: Label selection applied before flattening.
+            drop_sel: Label selection dropped before flattening.
         """
         super().__init__(sel=sel, drop_sel=drop_sel)
         if not isinstance(dims, tuple) or len(dims) < 2:
@@ -642,10 +644,12 @@ class FunctionTransform(Transform):
 
 
 class UnflattenTransform(Transform):
-    """
-    Unflattens (unstacks) a dimension into multiple dimensions.
-    The dimension must have been flattened before and must follow the naming output
-    of FlattenTransform (e.g. 'flat_dim1__dim2').
+    """Unstack a flattened dimension back into its source dimensions.
+
+    The input dimension must follow the naming convention produced by
+    `FlattenTransform`, such as `flat_trial__time`. If the coordinate is not
+    already a pandas `MultiIndex`, XDFlow attempts to build one from tuple-like
+    coordinate values before unstacking.
     """
 
     is_stateful: bool = False
@@ -746,8 +750,11 @@ class UnflattenTransform(Transform):
 
 
 class TrialSampler(Transform):
-    """
-    Samples trials from the data.
+    """Select a fixed number of trials from the `trial` dimension.
+
+    The transform samples by integer position. When `shuffle=True`, trial order
+    is shuffled with NumPy's default random generator before the first
+    `n_trials` positions are selected.
     """
 
     is_stateful: bool = False
@@ -762,6 +769,15 @@ class TrialSampler(Transform):
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
     ):
+        """Initialize trial subsampling.
+
+        Args:
+            n_trials: Number of trials to keep.
+            shuffle: Whether to shuffle trial indices before sampling.
+            random_state: Seed used when `shuffle=True`.
+            sel: Label selection applied before sampling.
+            drop_sel: Label selection dropped before sampling.
+        """
         super().__init__(sel=sel, drop_sel=drop_sel)
         self.n_trials = n_trials
         self.shuffle = shuffle

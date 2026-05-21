@@ -1,39 +1,57 @@
 # Utilities API
 
-## `xdflow.utils`
+Utilities cover caching, sampling, target-coordinate handling, spectral helpers, sample weights, and plotting helpers.
 
-Top-level public re-exports include:
+## Cache Utilities
 
-- `cache_result`
-- `get_pipeline_cache_key_dict`
-- `get_container_by_conditions`
-- `stratified_sample`
-- `bandpass_filter`
-- `get_freq_band_indices`
-- `get_remove_freq_ranges`
-- `extract_target_array`
-- `resolve_target_coords`
+::: xdflow.utils.cache_utils.cache_result
 
-## `xdflow.utils.sampling`
+::: xdflow.utils.cache_utils.get_pipeline_cache_key_dict
 
-Useful helpers for:
+::: xdflow.utils.cache_utils.clear_cache
 
-- filtering data by coordinate conditions
-- train/test splits on `DataContainer`
-- stratified sampling
-- group discovery and group selection
+## Sampling Utilities
 
-## `xdflow.utils.target_utils`
+::: xdflow.utils.sampling.get_container_by_conditions
 
-Useful helpers for:
+::: xdflow.utils.sampling.get_da_by_conditions
 
-- resolving one or more target coordinates
-- stacking multi-target coordinate arrays for predictors and scorers
+::: xdflow.utils.sampling.train_test_split_container
 
-## `xdflow.utils.visualizations`
+::: xdflow.utils.sampling.stratified_sample
 
-Useful helpers for:
+::: xdflow.utils.sampling.sample_by_max_count
 
-- plotting single-fold confusion matrices
-- aggregating confusion matrices across folds
-- plotting Optuna parameter importances when tuning dependencies are installed
+::: xdflow.utils.sampling.sample_by_fraction
+
+::: xdflow.utils.sampling.get_group_dim
+
+::: xdflow.utils.sampling.discover_groups
+
+::: xdflow.utils.sampling.select_group
+
+## Target Utilities
+
+::: xdflow.utils.target_utils.resolve_target_coords
+
+::: xdflow.utils.target_utils.extract_target_array
+
+## Sample-Weight Utilities
+
+::: xdflow.utils.sample_weights.extract_sample_weights
+
+## Spectral Utilities
+
+::: xdflow.utils.spectral.bandpass_filter
+
+::: xdflow.utils.spectral.get_remove_freq_ranges
+
+::: xdflow.utils.spectral.get_freq_band_indices
+
+## Visualization Utilities
+
+::: xdflow.utils.visualizations.plot_confusion_matrix
+
+::: xdflow.utils.visualizations.plot_combined_confusion_matrix
+
+::: xdflow.utils.visualizations.plot_tune_importances

@@ -1,82 +1,132 @@
 # Transforms API
 
-These modules cover the transforms used by the current maintained docs. Most are available with the core dependency set; modules noted as optional require their matching extra.
+Transforms are the reusable preprocessing, feature extraction, and model-adapter units that move `DataContainer` objects through a pipeline. Validators and tuners use transform metadata during execution: dimension declarations define valid handoffs between steps, and `is_stateful` controls which steps are refit inside each fold versus reused as fold-invariant work.
 
-Validators and tuners use transform metadata during execution. Dimension declarations define valid handoffs between steps, and `is_stateful` controls which steps are refit inside each fold versus reused as fold-invariant work.
+## Basic Transforms
 
-## `xdflow.transforms.basic_transforms`
+::: xdflow.transforms.basic_transforms.TransposeDimsTransform
 
-Common classes:
+::: xdflow.transforms.basic_transforms.RenameDimsTransform
 
-- `IdentityTransform`
-- `AverageTransform`
-- `FlattenTransform`
-- `UnflattenTransform`
-- `FunctionTransform`
-- `CropTimeTransform`
-- `SampleWeightTransform`
-- `BalanceClassWeightTransform`
+::: xdflow.transforms.basic_transforms.IdentityTransform
 
-## `xdflow.transforms.cleaning`
+::: xdflow.transforms.basic_transforms.SampleWeightTransform
 
-Common classes:
+::: xdflow.transforms.basic_transforms.BalanceClassWeightTransform
 
-- `CARTransform`
-- `RegressOutReferenceTransform`
-- `RemoveMissingBanksTransform`
-- `RemoveOutliersTransform`
+::: xdflow.transforms.basic_transforms.AverageTransform
 
-## `xdflow.transforms.normalization`
+::: xdflow.transforms.basic_transforms.FlattenTransform
 
-Common classes:
+::: xdflow.transforms.basic_transforms.FunctionTransform
 
-- `DemeanTransform`
-- `ZScoreTransform`
+::: xdflow.transforms.basic_transforms.UnflattenTransform
 
-## `xdflow.transforms.spectral`
+::: xdflow.transforms.basic_transforms.TrialSampler
 
-Common classes:
+::: xdflow.transforms.basic_transforms.CropTimeTransform
+
+## Cleaning And Normalization
+
+::: xdflow.transforms.cleaning.RemoveMissingBanksTransform
+
+::: xdflow.transforms.cleaning.CARTransform
+
+::: xdflow.transforms.cleaning.RegressOutReferenceTransform
+
+::: xdflow.transforms.cleaning.RemoveOutliersTransform
+
+::: xdflow.transforms.normalization.DemeanTransform
+
+::: xdflow.transforms.normalization.ZScoreTransform
+
+## Sklearn Adapters
+
+::: xdflow.transforms.sklearn_transform.SKLearnTransform
+
+::: xdflow.transforms.sklearn_transform.SKLearnTransformer
+
+::: xdflow.transforms.sklearn_transform.SKLearnPredictor
+
+::: xdflow.transforms.multi_output_wrapper.MultiOutputRegressorFactory
+
+::: xdflow.transforms.multi_output_wrapper.MultiOutputClassifierFactory
+
+::: xdflow.transforms.multi_output_wrapper.make_multi_output
+
+## Estimators And Predictors
+
+::: xdflow.transforms.nearestcentroid.NearestCentroidTransform
+
+::: xdflow.transforms.nearestcentroid.NearestCentroid
+
+::: xdflow.transforms.lda.CholeskyLDA
+
+::: xdflow.transforms.lda.CholeskyLDATransformer
+
+::: xdflow.transforms.lgbm_predictor.LGBMPredictor
+
+## Time-Series And Spatial Transforms
+
+::: xdflow.transforms.phase.HilbertPhaseTransform
+
+::: xdflow.transforms.pca.GlobalFeaturePCA
+
+::: xdflow.transforms.spatial.LaplacianCSDTransform
+
+::: xdflow.transforms.spatial.WindowMeanPyramidTransform
+
+::: xdflow.transforms.spatial.GaussianPyramidTransform
+
+::: xdflow.transforms.zca.LocalZCAWhitening
+
+::: xdflow.transforms.zca.GlobalZCAWhitening
+
+::: xdflow.transforms.zca.GlobalColoringProjection
+
+::: xdflow.transforms.zca.ZCAWhitening
+
+::: xdflow.transforms.zca.ZCATransform
+
+## Domain Adaptation
+
+::: xdflow.transforms.domain_adaptation.AdaptiveStrategy
+
+::: xdflow.transforms.domain_adaptation.SingleTargetStrategy
+
+::: xdflow.transforms.domain_adaptation.JointGroupStrategy
+
+::: xdflow.transforms.domain_adaptation.AdaptiveTransform
+
+::: xdflow.transforms.domain_adaptation.SingleTargetAligner
+
+::: xdflow.transforms.domain_adaptation.JointGroupAligner
+
+::: xdflow.transforms.domain_adaptation.ProcrustesAligner
+
+::: xdflow.transforms.domain_adaptation.CoralAligner
+
+::: xdflow.transforms.domain_adaptation.SAAligner
+
+::: xdflow.transforms.domain_adaptation.CCAAligner
+
+::: xdflow.transforms.domain_adaptation.MCCAAligner
+
+::: xdflow.transforms.domain_adaptation.GCCAAligner
+
+::: xdflow.transforms.domain_adaptation.JDAAligner
+
+::: xdflow.transforms.domain_adaptation.KCCAAligner
+
+::: xdflow.transforms.adapt_wrapper.AdaptWrapperStrategy
+
+::: xdflow.transforms.adapt_wrapper.AdaptWrapperTransform
+
+## Optional Spectral Module
+
+`xdflow.transforms.spectral` depends on `spectral-connectivity`. Install `xdflow[spectral]` or `xdflow[all]` before importing:
 
 - `MultiTaperTransform`
 - `BandpassFilterTransform`
 
-These operate on time-series style arrays and typically expect `trial`, `channel`, and `time` dimensions.
-
-Install `xdflow[spectral]` or `xdflow[all]` before importing this module.
-
-## `xdflow.transforms.sklearn_transform`
-
-Common classes:
-
-- `SKLearnTransform`
-- `SKLearnTransformer`
-- `SKLearnPredictor`
-
-These adapters let you wrap scikit-learn estimators while preserving `xdflow`'s labeled data contract: sample dimensions, target coordinates, sample weights, and prediction metadata stay attached at the container boundary.
-
-`SKLearnPredictor` supports:
-
-- single-label classification with a `LabelEncoder`
-- multi-target regression
-- multilabel classification with `is_multilabel=True`
-- optional `sample_weight` coordinates
-
-## `xdflow.transforms.multi_output_wrapper`
-
-Common classes:
-
-- `MultiOutputRegressorFactory`
-- `MultiOutputClassifierFactory`
-- `MultiOutputEstimatorFactory` (backward-compatible alias for `MultiOutputRegressorFactory`)
-
-## Advanced optional modules
-
-The transform package also contains additional modules that may require optional extras or more specialized dependencies, including:
-
-- `xdflow.transforms.lgbm_predictor`
-- `xdflow.transforms.domain_adaptation`
-- `xdflow.transforms.adapt_wrapper`
-- `xdflow.transforms.zca`
-- `xdflow.transforms.spatial`
-- `xdflow.transforms.lda`
-- `xdflow.transforms.pca`
+The published docs avoid importing that module during the standard docs build so Read the Docs does not need optional spectral dependencies.
