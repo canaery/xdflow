@@ -8,23 +8,23 @@ AGENTS.md
 
 For Codex-style coding agents, this file is read automatically when the agent works in the repository. For other LLM tools, attach `AGENTS.md` or point the tool at it before asking for code changes.
 
-That file is the canonical instruction source for XDFlow-specific implementation rules: how to write transforms, how to preserve xarray metadata, how cloning works, when to use sklearn wrappers, and when to use XDFlow validators instead of manual split loops.
+That file is the canonical instruction source for XDFlow-specific implementation rules: how to write transforms, how to honor the xarray data contract, how cloning works, when to use sklearn wrappers, and when to use XDFlow validators instead of manual split loops.
 
 ## Why This Helps
 
-XDFlow works well as an LLM coding scaffold because it gives the model a small set of contracts to target:
+XDFlow works well with LLM coding tools because there are a few concrete interfaces to target:
 
 - data is an `xarray.DataArray` wrapped in `DataContainer`
 - transforms implement `fit`, `transform`, and `fit_transform` through the `Transform` base class
 - predictors implement `predict` and optionally `predict_proba`
-- pipelines and validators own orchestration, caching, splitting, and scoring
+- pipelines and validators own orchestration, fold-invariant caching, splitting, refitting, and scoring
 
-The practical goal is to have the LLM write small pieces that fit XDFlow's API instead of inventing an entire analysis script.
+The practical goal is to have the LLM write one small XDFlow piece at a time instead of inventing a full analysis script with manual side arrays, split loops, and cache logic.
 
 ## Recommended Workflow
 
 1. Let the agent read `AGENTS.md`.
-2. Give the scientific task and the data contract: dimensions, coordinates, sample dimension, target coordinates, and grouping coordinates.
+2. Give the scientific task and the data contract: dimensions, coordinates, sample dimension, target coordinates, grouping coordinates, and whether new transforms are fold-invariant or stateful.
 3. Ask for one bounded implementation: a transform, a pipeline, a validator configuration, or tests.
 4. Have the agent run `uv run ruff check xdflow tests` and `uv run pytest`.
 
@@ -102,7 +102,7 @@ cv = KFoldValidator(n_splits=5, test_size=0.2, stratify_coord="stimulus", verbos
 cv.set_pipeline(pipeline)
 ```
 
-This keeps expensive preprocessing, fitting, prediction, and scoring inside XDFlow instead of spreading orchestration across generated helper functions.
+This keeps expensive preprocessing, fitting, prediction, scoring, and cache reuse inside XDFlow instead of spreading orchestration across generated helper functions.
 
 ## Review Checklist
 
@@ -112,6 +112,7 @@ When reviewing agent-generated XDFlow code, check:
 - fitted state is private and not included in `__init__`
 - transforms return a new `DataContainer`
 - xarray dimensions and coordinates are preserved or intentionally changed
+- stateless transforms are genuinely fold-invariant if they will run before CV split boundaries
 - sample-level coordinates remain aligned to the sample dimension
 - sklearn models are wrapped with `SKLearnTransformer` or `SKLearnPredictor`
 - cross-validation uses `xdflow.cv` validators rather than manual split loops

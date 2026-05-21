@@ -1,9 +1,9 @@
 # Tutorials
 
-Start with the core quickstart, then move to the richer examples when you need signal-processing features or specialized validation patterns.
+The tutorials cover metadata alignment, leakage-safe validation, fold-invariant reuse, modular pipelines, and specialized split policies.
 
-- [5-Minute Core Quickstart](quickstart.md): runnable base-install pipeline on labeled `xarray` data
-- [Spectral Pipeline Walkthrough](basic-pipeline.md): preprocessing and classification on synthetic LFP-like data using the `spectral` extra
-- [Reusable ML Patterns](reusable-ml-patterns.md): multilabel prediction, class/domain weighting, and few-shot domain transfer
+- [5-Minute Core Quickstart](quickstart.md): runnable base-install pipeline with coordinate targets, stratified CV, stateful refits, and prediction alignment
+- [Spectral Pipeline Walkthrough](basic-pipeline.md): signal-processing pipeline where expensive fold-invariant feature extraction can be reused across folds
+- [Reusable ML Patterns](reusable-ml-patterns.md): multilabel prediction, class/domain weighting, and few-shot domain transfer without side-channel label or split bookkeeping
 
 The original notebook and dataset helper are still kept under `docs/tutorials/` for local exploration, but the Markdown walkthroughs are the canonical versions for the published docs site.

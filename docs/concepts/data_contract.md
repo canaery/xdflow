@@ -1,6 +1,8 @@
 # Data Contract
 
-`xdflow` works on `xarray.DataArray` objects wrapped by `DataContainer`. The library does not require a fixed schema beyond a few conventions, but it assumes your data is labeled consistently enough for transforms to reason about dimensions by name.
+`xdflow` works on `xarray.DataArray` objects wrapped by `DataContainer`. The library does not require a fixed schema beyond a few conventions, but it assumes your data is labeled consistently enough for transforms to use dimensions by name.
+
+The data contract is also what validators and tuners use at runtime. Dimensions and coordinates tell the framework what can be selected, split, transformed, scored, cached, and aligned without moving metadata into separate side arrays.
 
 ## Required structure
 
@@ -26,6 +28,19 @@ Common dimension names in this repo include:
 - `freq_band`
 
 Domain-specific labels are fine as long as they remain internally consistent.
+
+## Runtime use
+
+`xdflow` uses the data contract together with transform state to run pipelines:
+
+- `sample_dim` identifies the independent sample axis for predictors
+- target coordinates such as `stimulus` stay attached to that sample axis
+- group coordinates such as `session`, `subject`, or `animal` can define split boundaries
+- transform `input_dims` and `output_dims` catch invalid handoffs between steps
+- `is_stateful` tells validators which steps must be cloned and refit per fold
+- fold-invariant stateless steps can be reused across folds or tuning trials
+
+Do not mark a transform stateless just because it has no fitted Python object. If it computes cross-sample statistics or otherwise depends on the validation split, model it as stateful or keep it after the split boundary.
 
 ## Coordinates and attrs
 

@@ -1,10 +1,10 @@
 # Reusable ML Patterns
 
-This page shows public, reusable patterns for common scientific ML workflows: multilabel prediction, sample weighting, and few-shot domain transfer.
+This page covers reusable patterns for keeping labels, weights, and domain information in the data. Predictors and validators read those coordinates directly, so multilabel prediction, sample weighting, and few-shot domain transfer use the same pipeline machinery as simpler workflows.
 
 ## Multilabel Classification
 
-Use `SKLearnPredictor` with `is_multilabel=True` when each target is a binary coordinate.
+Use `SKLearnPredictor` with `is_multilabel=True` when each target is a binary coordinate. The targets remain named coordinates instead of a separate `y` matrix.
 
 ```python
 from sklearn.linear_model import LogisticRegression
@@ -29,7 +29,7 @@ For wildcard target coordinates, pass a pattern such as `target_coord="target__*
 
 ## Class and Domain Weighting
 
-Use `BalanceClassWeightTransform` to attach a `sample_weight` coordinate that downstream sklearn-compatible estimators can consume.
+Use `BalanceClassWeightTransform` to attach a `sample_weight` coordinate that downstream sklearn-compatible estimators can consume. Weighting stays in the container, so it can move with the same trial axis as the labels and metadata.
 
 ```python
 from sklearn.linear_model import LogisticRegression
@@ -64,7 +64,7 @@ The default sklearn wrappers look for a `sample_weight` coordinate. Pass `sample
 
 ## Few-Shot Domain Transfer
 
-Use `SampledDomainKFoldValidator` when validation should occur only on target-domain folds, while training uses all source-domain samples plus a controlled number of target-domain samples.
+Use `SampledDomainKFoldValidator` when validation should occur only on target-domain folds, while training uses all source-domain samples plus a controlled number of target-domain samples. The domain policy is part of the validator configuration instead of a custom split script.
 
 ```python
 from sklearn.linear_model import LogisticRegression

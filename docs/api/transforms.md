@@ -2,6 +2,8 @@
 
 These modules cover the transforms used by the current maintained docs. Most are available with the core dependency set; modules noted as optional require their matching extra.
 
+Validators and tuners use transform metadata during execution. Dimension declarations define valid handoffs between steps, and `is_stateful` controls which steps are refit inside each fold versus reused as fold-invariant work.
+
 ## `xdflow.transforms.basic_transforms`
 
 Common classes:
@@ -50,7 +52,7 @@ Common classes:
 - `SKLearnTransformer`
 - `SKLearnPredictor`
 
-These adapters let you wrap scikit-learn estimators while preserving `xdflow`'s labeled data model.
+These adapters let you wrap scikit-learn estimators while preserving `xdflow`'s labeled data contract: sample dimensions, target coordinates, sample weights, and prediction metadata stay attached at the container boundary.
 
 `SKLearnPredictor` supports:
 

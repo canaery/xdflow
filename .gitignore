@@ -80,3 +80,6 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.log
+
+# Local AI assistant context
+CLAUDE.md

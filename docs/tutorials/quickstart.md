@@ -1,6 +1,8 @@
 # 5-Minute Core Quickstart
 
-This quickstart uses only the base `xdflow` install. It creates a small labeled `xarray.DataArray`, wraps it in a `DataContainer`, builds a pipeline, and evaluates it with cross-validation.
+This quickstart uses only the base `xdflow` install. It creates a small labeled `xarray.DataArray`, wraps it in a `DataContainer`, builds a pipeline, and lets `KFoldValidator` run the evaluation loop.
+
+The example shows the mechanics that matter in larger experiments: labels live as coordinates, the classifier reads its target from a coordinate, the validator stratifies by that coordinate, stateful steps refit per fold, and predictions stay aligned with the trial axis.
 
 From a repository checkout, the same example is available as a runnable script:
 
@@ -75,7 +77,9 @@ pipeline = Pipeline(
 
 ## 3. Cross-Validate
 
-`KFoldValidator` owns the split loop and refits stateful steps per fold. The `stratify_coord` argument keeps class proportions balanced across folds.
+`KFoldValidator` owns the split loop, scoring, prediction collection, and stateful refits. The `stratify_coord` argument keeps class proportions balanced across folds using the named `stimulus` coordinate.
+
+In this pipeline, z-scoring is per trial and flattening is structural, so that fold-invariant preprocessing can run before the stateful classifier is cloned and refit on each training fold.
 
 ```python
 from xdflow.cv import KFoldValidator

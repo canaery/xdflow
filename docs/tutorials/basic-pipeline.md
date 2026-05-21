@@ -111,11 +111,11 @@ score = cv.cross_validate(container, verbose=False)
 print(score)
 ```
 
-What `xdflow` handles for you here:
+During cross-validation:
 
 - trial labels stay attached through every step
-- stateless preprocessing can be reused across folds
-- stateful steps such as PCA and logistic regression are refit per fold
+- fold-invariant stateless preprocessing, such as common-average re-referencing and multitaper feature extraction, can be reused across folds
+- stateful steps such as PCA and logistic regression are cloned and refit per fold
 - predictors read targets from coordinates instead of a separate `y`
 
 ## 4. Predict on new data

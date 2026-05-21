@@ -2,12 +2,14 @@
 
 `xdflow` is intentionally close to scikit-learn in workflow, but it changes the unit of computation from an unlabeled `ndarray` to a labeled `xarray.DataArray` wrapped by `DataContainer`.
 
+Those labels are used by the runtime. Dimensions, coordinates, targets, groups, split settings, and transform state tell validators and tuners how to split, refit, cache, score, and keep predictions aligned.
+
 ## Data model
 
 - The canonical input is `xarray.DataArray`.
 - Dimensions are named and preserved through the pipeline.
 - Coordinates carry metadata such as class labels, sessions, animals, or timestamps.
-- `DataContainer` wraps the array and ensures operations keep returning containers instead of bare arrays.
+- `DataContainer` wraps the array and keeps operations returning containers instead of bare arrays.
 
 The runtime expects at least a `trial` dimension for most supervised workflows. Additional dimensions such as `channel`, `time`, `frequency`, or `feature` are transform-specific.
 
@@ -27,14 +29,14 @@ Important conventions enforced throughout the library:
 - learned state belongs on fitted attributes, not in constructor arguments
 - new dimensions should receive descriptive names and coordinates where possible
 
-## Stateless vs stateful steps
+## Fold-invariant vs stateful steps
 
-Cross-validation is optimized around the `is_stateful` flag:
+Cross-validation uses the `is_stateful` flag to decide where the fold boundary belongs:
 
-- stateless transforms can run once before fold splitting
-- stateful transforms are re-fit inside each fold
+- fold-invariant stateless transforms can run once before fold splitting
+- stateful or split-dependent transforms are re-fit inside each fold
 
-This matters for expensive preprocessing such as spectral feature extraction, where reusing stateless work can remove a large amount of repeated computation.
+This matters for expensive preprocessing such as spectral feature extraction, where fold-invariant work should not be recomputed for every fold. A transform should only be marked stateless for CV reuse when it does not learn from held-out samples or depend on the split boundary.
 
 ## Composition patterns
 

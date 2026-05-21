@@ -1,6 +1,6 @@
 # API Reference
 
-The API pages document the stable, core parts of the library that build without optional runtime extras.
+The API pages document the stable, core parts of the library that build without optional runtime extras: labeled containers, dimension-aware transforms, composable pipelines, validators, and utilities for target and metadata handling.
 
 Included here:
 

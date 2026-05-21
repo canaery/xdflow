@@ -1,21 +1,28 @@
-# xdflow
+# XDFlow
 
-`xdflow` is a framework for building machine learning pipelines on labeled scientific data. It keeps `xarray` dimensions and coordinates intact while still exposing familiar `fit`, `transform`, `predict`, and cross-validation workflows.
+`xdflow` is a framework for building machine learning pipelines on labeled scientific data. It keeps `xarray` dimensions and coordinates with the data as it moves through transforms, predictors, validators, and tuners.
 
-## What it is for
+In NumPy/sklearn-style code, targets, sessions, subjects, channels, and timestamps often become side arrays. `xdflow` keeps those labels in the `DataContainer` and pipeline contract, so validators and tuners can split, refit, cache, score, and align predictions using named coordinates instead of positional conventions.
 
-Use `xdflow` when your data is more structured than a plain 2D feature matrix:
+## Why use it
 
-- neural recordings with `trial`, `channel`, and `time` dimensions
-- sensor arrays with per-sample metadata such as subject, session, or condition
-- multidimensional features where dimension names must survive preprocessing
+Use `xdflow` when you do not want to rewrite split, cache, refit, and metadata-alignment logic for every experiment:
+
+- **Faster CV and tuning**: fold-invariant stateless transforms can run once and be reused across folds, tuning trials, and pipeline comparisons.
+- **Better leakage safety**: stateful or split-dependent steps are cloned and refit inside each training fold.
+- **Metadata tracking**: targets, groups, sessions, subjects, channels, timestamps, and predictions stay attached to the data instead of drifting into side arrays.
+- **Named-coordinate validation**: validators can split, group, or stratify by coordinates such as `stimulus`, `session`, `subject`, or `animal`.
+- **Modular pipelines**: transforms, predictors, unions, switches, and per-group steps compose without handwritten split loops.
+- **Automatic split, cache, and refit planning**: validators and tuners use dimension contracts, coordinates, split settings, and transform state to decide what can be reused and what must be refit.
+
+These patterns show up in neural recordings, biosignals, sensor arrays, medical time series, geophysical data, and other labeled datasets where the metadata is part of the experiment.
 
 The library is built around a small set of abstractions:
 
-- `DataContainer` wraps an `xarray.DataArray` and preserves data history
-- `Transform` defines immutable, dimension-aware preprocessing steps
+- `DataContainer` wraps an `xarray.DataArray` and keeps dimensions, coordinates, attrs, and data history together
+- `Transform` defines immutable preprocessing steps with explicit dimension and state contracts
 - `Pipeline` composes transforms and predictors into reusable workflows
-- `CrossValidator` runs structure-aware evaluation while separating stateless and stateful steps
+- `CrossValidator` runs structure-aware evaluation while separating fold-invariant stateless work from stateful or split-dependent steps
 
 ## Package layout
 

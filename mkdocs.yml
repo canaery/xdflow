@@ -1,5 +1,5 @@
-site_name: xdflow
-site_description: Dimension-aware ML pipelines for scientific data
+site_name: XDFlow
+site_description: Dimension-aware, metadata-driven ML pipelines for scientific data
 site_url: !ENV [READTHEDOCS_CANONICAL_URL, "https://xdflow.readthedocs.io/"]
 repo_url: https://github.com/canaery/xdflow
 repo_name: canaery/xdflow

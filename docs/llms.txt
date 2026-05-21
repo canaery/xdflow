@@ -1,6 +1,6 @@
-# xdflow
+# XDFlow
 
-XDFlow is a dimension-aware ML pipeline framework for scientific data built on xarray.
+XDFlow is a dimension-aware, metadata-driven ML pipeline framework for scientific data built on xarray. It keeps dimensions, coordinates, targets, groups, split policies, and transform state in the pipeline so validators and tuners can split, cache, refit, score, and align predictions by name.
 
 Important docs for LLMs and coding agents:
 
