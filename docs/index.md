@@ -1,6 +1,6 @@
 # XDFlow
 
-`xdflow` is a framework for building machine learning pipelines on labeled scientific data. It keeps `xarray` dimensions and coordinates with the data as it moves through transforms, predictors, validators, and tuners.
+`xdflow` is a framework for building machine learning pipelines on labeled structured data. It keeps `xarray` dimensions and coordinates with the data as it moves through transforms, predictors, validators, and tuners.
 
 In NumPy/sklearn-style code, targets, sessions, subjects, channels, and timestamps often become side arrays. `xdflow` keeps those labels in the `DataContainer` and pipeline contract, so validators and tuners can split, refit, cache, score, and align predictions using named coordinates instead of positional conventions.
 
