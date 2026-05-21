@@ -1,17 +1,18 @@
 # XDFlow
 
-`xdflow` is a framework for building machine learning pipelines on labeled structured data. It keeps `xarray` dimensions and coordinates with the data as it moves through transforms, predictors, validators, and tuners.
+`xdflow` is a machine learning framework that leverages metadata in labeled structured data. Built on `xarray` objects, it uses dimensions and coordinates such as `trial`, `channel`, `time`, `stimulus`, `session`, and `subject` as pipeline context for transforms, prediction, cross-validation, tuning, and scoring.
 
-In NumPy/sklearn-style code, targets, sessions, subjects, channels, and timestamps often become side arrays. `xdflow` keeps those labels in the `DataContainer` and pipeline contract, so validators and tuners can split, refit, cache, score, and align predictions using named coordinates instead of positional conventions.
+The metadata is part of the workflow, not just something carried along for inspection. Named dimensions tell transforms what to operate on. Target, group, session, and subject coordinates drive validation. Transform state tells validators and tuners what can be reused across folds and what must be refit. Predictions and scores stay tied to the coordinates that produced them.
 
 ## Why use it
 
-Use `xdflow` when you do not want to rewrite split, cache, refit, and metadata-alignment logic for every experiment:
+Use `xdflow` when your pipeline should understand the structure of the data:
 
+- **Coordinate-aware transforms**: operate on `trial`, `channel`, or `time` by name instead of by axis index.
 - **Faster CV and tuning**: fold-invariant stateless transforms can run once and be reused across folds, tuning trials, and pipeline comparisons.
 - **Better leakage safety**: stateful or split-dependent steps are cloned and refit inside each training fold.
-- **Metadata tracking**: targets, groups, sessions, subjects, channels, timestamps, and predictions stay attached to the data instead of drifting into side arrays.
 - **Named-coordinate validation**: validators can split, group, or stratify by coordinates such as `stimulus`, `session`, `subject`, or `animal`.
+- **Aligned outputs**: targets, groups, sessions, subjects, channels, timestamps, and predictions stay attached to the data.
 - **Modular pipelines**: transforms, predictors, unions, switches, and per-group steps compose without handwritten split loops.
 - **Automatic split, cache, and refit planning**: validators and tuners use dimension contracts, coordinates, split settings, and transform state to decide what can be reused and what must be refit.
 

@@ -1,9 +1,9 @@
-"""
-xdflow: Dimension-aware ML pipelines for scientific data
+"""Metadata-driven ML pipelines for labeled structured data.
 
-xdflow is a machine learning framework designed for structured, multidimensional
-scientific data. Built on xarray, it brings reproducible, metadata-aware pipelines
-to domains where sklearn falls short.
+XDFlow works with structured data stored as labeled xarray objects. It keeps
+dimensions, coordinates, targets, groups, split policies, and transform state in
+the pipeline contract so validators and tuners can operate by name instead of
+by positional side arrays.
 """
 
 from importlib.metadata import PackageNotFoundError, version

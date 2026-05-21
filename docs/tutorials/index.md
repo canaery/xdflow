@@ -1,6 +1,6 @@
 # Tutorials
 
-The tutorials cover metadata alignment, leakage-safe validation, fold-invariant reuse, modular pipelines, and specialized split policies.
+The tutorials show how XDFlow uses metadata as pipeline context: coordinate targets, named-dimension transforms, leakage-safe validation, fold-invariant reuse, modular pipelines, and specialized split policies.
 
 - [5-Minute Core Quickstart](quickstart.md): runnable base-install pipeline with coordinate targets, stratified CV, stateful refits, and prediction alignment
 - [Hyperparameter Tuning](tuning.md): Optuna-backed search over pipeline parameters, optional steps, switch choices, and multiple pipelines

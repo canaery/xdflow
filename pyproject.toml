@@ -1,7 +1,7 @@
 [project]
 name = "xdflow"
 version = "0.1.1"
-description = "Dimension-aware ML pipelines for scientific data"
+description = "Metadata-driven ML pipelines for labeled structured data"
 authors = [
     {name = "Julien Bloch", email = "julien@canaery.com"},
     {name = "Joanna Chang", email = "joanna@canaery.com"},

@@ -1,18 +1,22 @@
 # XDFlow
 
-XDFlow is a dimension-aware, metadata-driven ML pipeline framework for scientific data built on xarray. It keeps dimensions, coordinates, targets, groups, split policies, and transform state in the pipeline so validators and tuners can split, cache, refit, score, and align predictions by name.
+XDFlow is a metadata-driven ML pipeline framework for labeled structured data stored as xarray objects. It keeps dimensions, coordinates, targets, groups, split policies, and transform state in the pipeline so validators and tuners can split, cache, refit, score, and align predictions by name.
 
 Important docs for LLMs and coding agents:
 
 - Overview: /index/
 - Data contract: /concepts/data_contract/
+- Composing pipelines: /concepts/composition/
+- Tuning: /concepts/tuning/
 - 5-minute core quickstart: /tutorials/quickstart/
+- Hyperparameter tuning: /tutorials/tuning/
 - Spectral pipeline walkthrough: /tutorials/basic-pipeline/
 - Reusable ML patterns: /tutorials/reusable-ml-patterns/
 - Using XDFlow with LLMs: /guides/llm/
 - Core API: /api/core/
 - Composition API: /api/composition/
 - Cross-validation API: /api/cv/
+- Tuning API: /api/tuning/
 - Transforms API: /api/transforms/
 
 Repository-level coding-agent instructions live in AGENTS.md.

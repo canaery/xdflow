@@ -938,7 +938,7 @@ class ZCAWhitening(BaseEstimator, TransformerMixin):
 
 class ZCATransform(SKLearnTransformer):
     """
-    ZCA (Zero Component Analysis) whitening transform for dimension-aware pipelines.
+    ZCA (Zero Component Analysis) whitening transform.
 
     This transform performs PCA with whitening and then inverts the PCA transform
     to return to the original space, effectively implementing ZCA whitening.

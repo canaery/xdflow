@@ -1,13 +1,22 @@
 # XDFlow
 
-**Dimension-aware, metadata-driven ML pipelines for structured data**
+**Metadata-driven ML pipelines for labeled structured data**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
-`xdflow` is a machine learning framework for scientific data stored as labeled [xarray](https://xarray.dev/) objects. Transforms, predictors, validators, and tuners work with dimensions and coordinates such as `trial`, `channel`, `time`, `stimulus`, `session`, and `subject`, instead of losing that information when data is reshaped to anonymous `(samples, features)` arrays.
+`xdflow` is a machine learning framework that leverages metadata in labeled structured data. Built on [xarray](https://xarray.dev/) objects, it uses dimensions and coordinates such as `trial`, `channel`, `time`, `stimulus`, `session`, and `subject` as pipeline context for transforms, prediction, cross-validation, tuning, and scoring.
 
-In a NumPy/sklearn workflow, that structure usually becomes side data:
+That lets the pipeline do more for you:
+
+- Transforms operate on named dimensions, so feature construction reads as `by_dim=["trial"]` rather than `axis=0`.
+- Target, group, session, and subject coordinates drive validation without custom split code.
+- The pipeline knows which steps are stateful and which are reusable, so expensive stateless work runs once across folds and tuning trials.
+- Predictions, scores, and out-of-fold outputs stay tied to the coordinates that produced them, which makes alignment mistakes easier to catch.
+
+sklearn-compatible estimators — sklearn, LightGBM, XGBoost, or your own — drop in via `SKLearnTransformer` and `SKLearnPredictor`.
+
+For comparison, in a plain NumPy/sklearn workflow, structure like this usually becomes side data:
 
 ```text
 X.shape          # (180, 100)        # was (180, 4, 25)
@@ -16,11 +25,7 @@ sessions         # tracked separately
 channel_names    # tracked separately
 ```
 
-Every split, transform, prediction, and score then depends on keeping those arrays in sync. A bad reindex or reshape can still produce valid-looking arrays and scores.
-
-`xdflow` keeps dimensions, coordinates, targets, groups, split settings, and transform state in the pipeline contract. Validators can split by named coordinates, stateful steps refit inside each fold, and fold-invariant work can be reused across CV and tuning.
-
-This cuts down custom split/cache code and catches many alignment and leakage errors earlier.
+`xdflow` removes this side-data bookkeeping by making structure part of the pipeline itself.
 
 ---
 
@@ -119,7 +124,7 @@ print(f"Weighted F1: {score:.3f}")
 - **Leakage-aware cross-validation**: validators split on named trial, target, and group coordinates; stateful steps refit only on training folds; out-of-fold predictions are emitted for stacking and ensembles.
 - **Fold-invariant caching**: expensive stateless work such as spectrograms or filtering can run once and be reused across folds and tuning trials.
 - **Hyperparameter tuning**: Optuna-based search across pipeline architectures, reusable static-prefix caching across tuning trials, optional MLflow logging, and explicit seed management.
-- **Pluggable estimators**: any class implementing the sklearn API — sklearn itself, LightGBM, XGBoost, or your own — drops into the pipeline via `SKLearnTransformer` and `SKLearnPredictor`.
+- **Pluggable estimators**: any class implementing the sklearn API, including sklearn itself, LightGBM, XGBoost, or your own, drops into the pipeline via `SKLearnTransformer` and `SKLearnPredictor`.
 - **Multi-output support**: a unified interface for multi-target regression, multilabel classification, and sample-weighted training with sklearn-compatible estimators.
 - **Explicit API contracts**: focused transform and pipeline interfaces keep custom code small enough to write, test, review, and generate with LLM coding tools.
 

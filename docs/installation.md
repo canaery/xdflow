@@ -6,7 +6,7 @@
 pip install xdflow
 ```
 
-This installs the core runtime for dimension-aware, metadata-driven pipelines built on `xarray`, `numpy`, `pandas`, `scikit-learn`, `scipy`, and `joblib`.
+This installs the core runtime for metadata-driven pipelines built on `xarray`, `numpy`, `pandas`, `scikit-learn`, `scipy`, and `joblib`.
 
 ## Optional extras
 
