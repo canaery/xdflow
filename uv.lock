@@ -4707,6 +4707,7 @@ docs = [
     { name = "mkdocs-material" },
     { name = "mkdocstrings", extra = ["python"] },
     { name = "netcdf4" },
+    { name = "optuna" },
 ]
 lightgbm = [
     { name = "lightgbm" },
@@ -4750,6 +4751,7 @@ requires-dist = [
     { name = "nitime", marker = "extra == 'spectral'", specifier = ">=0.10" },
     { name = "numpy", specifier = ">=1.24.0" },
     { name = "optuna", marker = "extra == 'all'", specifier = ">=3.0.0" },
+    { name = "optuna", marker = "extra == 'docs'", specifier = ">=3.0.0" },
     { name = "optuna", marker = "extra == 'tuning'", specifier = ">=3.0.0" },
     { name = "optuna-integration", marker = "extra == 'all'", specifier = ">=4.1.0" },
     { name = "optuna-integration", marker = "extra == 'tuning'", specifier = ">=4.1.0" },

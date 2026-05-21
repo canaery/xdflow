@@ -10,7 +10,7 @@ This installs the core runtime for dimension-aware, metadata-driven pipelines bu
 
 ## Optional extras
 
-Install only the extra feature sets you need:
+Install only the dependency sets you need:
 
 ```bash
 pip install "xdflow[tuning]"
@@ -24,7 +24,7 @@ pip install "xdflow[all]"
 
 Current extras in `pyproject.toml`:
 
-- `tuning`: Optuna-based tuning support
+- `tuning`: Optuna-backed tuning support. Tuning is a core XDFlow workflow; the extra only keeps optimizer dependencies out of the minimal install.
 - `lightgbm`: LightGBM predictor wrapper
 - `mlflow`: experiment tracking integration
 - `viz`: plotting helpers
@@ -44,6 +44,12 @@ This repository also includes a `uv.lock`, so a reproducible local setup can be 
 
 ```bash
 uv sync --extra dev --extra docs
+```
+
+For tuning development or docs examples:
+
+```bash
+uv sync --extra dev --extra docs --extra tuning
 ```
 
 Run the core quickstart example from the repository root:

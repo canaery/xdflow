@@ -48,6 +48,14 @@ The main composition tools are:
 - `SwitchTransform` and `OptionalTransform`: conditional or toggleable branches
 - `EnsemblePredictor`: weighted combination of multiple predictors
 
+See [Composing Pipelines](composition.md) for examples and guidance on when to use each composite.
+
+## Tuning
+
+Tuning is a first-class XDFlow workflow. A tuner searches over pipeline parameters and architecture choices while the validator still owns splitting, scoring, refitting, and leakage boundaries.
+
+The tuning install extra only controls dependency weight by installing Optuna. It does not make tuning a secondary part of the framework. See [Tuning](tuning.md) for the workflow model and [Hyperparameter Tuning](../tutorials/tuning.md) for a runnable pattern.
+
 ## Target handling
 
 Predictors usually read labels from coordinates rather than from a separate `y` array. This keeps targets aligned with the same labeled trial axis used by the rest of the pipeline.

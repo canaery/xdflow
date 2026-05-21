@@ -3,6 +3,7 @@
 The tutorials cover metadata alignment, leakage-safe validation, fold-invariant reuse, modular pipelines, and specialized split policies.
 
 - [5-Minute Core Quickstart](quickstart.md): runnable base-install pipeline with coordinate targets, stratified CV, stateful refits, and prediction alignment
+- [Hyperparameter Tuning](tuning.md): Optuna-backed search over pipeline parameters, optional steps, switch choices, and multiple pipelines
 - [Spectral Pipeline Walkthrough](basic-pipeline.md): signal-processing pipeline where expensive fold-invariant feature extraction can be reused across folds
 - [Reusable ML Patterns](reusable-ml-patterns.md): multilabel prediction, class/domain weighting, and few-shot domain transfer without side-channel label or split bookkeeping
 

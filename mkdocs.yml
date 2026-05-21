@@ -57,9 +57,12 @@ nav:
   - Concepts:
       - concepts/index.md
       - Data Contract: concepts/data_contract.md
+      - Composing Pipelines: concepts/composition.md
+      - Tuning: concepts/tuning.md
   - Tutorials:
       - tutorials/index.md
       - 5-Minute Core Quickstart: tutorials/quickstart.md
+      - Hyperparameter Tuning: tutorials/tuning.md
       - Spectral Pipeline Walkthrough: tutorials/basic-pipeline.md
       - Reusable ML Patterns: tutorials/reusable-ml-patterns.md
   - Guides:
@@ -69,6 +72,7 @@ nav:
       - Core: api/core.md
       - Composition: api/composition.md
       - Cross-Validation: api/cv.md
+      - Tuning: api/tuning.md
       - Transforms: api/transforms.md
       - Utilities: api/utils.md
   - Development: development.md
