@@ -1,7 +1,7 @@
 import inspect
 import warnings
 from inspect import Parameter, signature
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -81,13 +81,13 @@ class SKLearnTransform(Transform, SampleWeightMixin):
 
         # Extract estimator-specific parameters (everything not used by Transform or Predictor)
         if _estimator_instance is not None:
-            self.estimator = _estimator_instance
+            self.estimator: Any = _estimator_instance
             self._estimator_kwargs = getattr(self, "_estimator_kwargs", None)
             if self._estimator_kwargs is None:
                 self._estimator_kwargs = {k: v for k, v in kwargs.items() if k not in parent_param_names}
         else:
             self._estimator_kwargs = {k: v for k, v in kwargs.items() if k not in parent_param_names}
-            self.estimator = estimator_cls(**self._estimator_kwargs)
+            self.estimator: Any = estimator_cls(**self._estimator_kwargs)
 
         if not hasattr(self.estimator, "fit"):
             raise TypeError(
@@ -118,6 +118,8 @@ class SKLearnTransform(Transform, SampleWeightMixin):
         Returns:
             List of resolved target coordinate names
         """
+        if self.target_coord is None:
+            raise ValueError("target_coord must be set to resolve supervised targets.")
         return resolve_target_coords(self.target_coord, data)
 
     def _fit(self, container: DataContainer, **kwargs) -> "SKLearnTransform":
@@ -150,12 +152,12 @@ class SKLearnTransform(Transform, SampleWeightMixin):
                 )
 
                 if getattr(self, "is_multilabel", False):
-                    estimator_cls = MultiOutputClassifierFactory(self._base_estimator_cls)
-                    self.estimator = estimator_cls(**self._estimator_kwargs)
+                    estimator_cls = MultiOutputClassifierFactory(cast(type[BaseEstimator], self._base_estimator_cls))
+                    self.estimator = estimator_cls(**dict(cast(dict[str, Any], self._estimator_kwargs)))
                     self.multi_output = True
                 elif not self.is_classifier:
-                    estimator_cls = MultiOutputRegressorFactory(self._base_estimator_cls)
-                    self.estimator = estimator_cls(**self._estimator_kwargs)
+                    estimator_cls = MultiOutputRegressorFactory(cast(type[BaseEstimator], self._base_estimator_cls))
+                    self.estimator = estimator_cls(**dict(cast(dict[str, Any], self._estimator_kwargs)))
                     self.multi_output = True
 
         # If supervised, delegate any encoding decisions to Predictor upstream
@@ -236,8 +238,8 @@ class SKLearnTransform(Transform, SampleWeightMixin):
         Override hasattr to check if the parameter exists either on the wrapper or the estimator.
         """
         if name in ["estimator", "sample_dim", "target_coord"]:
-            return super().__hasattr__(name)
-        return hasattr(self.estimator, name) or super().__hasattr__(name)
+            return name in self.__dict__ or hasattr(type(self), name)
+        return hasattr(self.estimator, name) or name in self.__dict__ or hasattr(type(self), name)
 
     def _get_clone_kwargs(self) -> dict[str, Any]:
         """Include estimator parameters in clone kwargs."""
@@ -247,7 +249,7 @@ class SKLearnTransform(Transform, SampleWeightMixin):
         if hasattr(self, "_base_estimator_cls") and hasattr(self, "multi_output"):
             filtered_params["estimator_cls"] = self._base_estimator_cls
 
-        return {**filtered_params, **self._estimator_kwargs}
+        return {**filtered_params, **dict(cast(dict[str, Any], self._estimator_kwargs))}
 
     def _build_fit_kwargs(self, data: xr.DataArray, sample_index: pd.Index) -> dict[str, Any]:
         """Collect optional keyword arguments to forward to estimator.fit."""
@@ -463,7 +465,7 @@ class SKLearnPredictor(SKLearnTransform, Predictor):
             if not _already_multioutput:
                 original_cls = estimator_cls
                 factory = MultiOutputClassifierFactory if is_multilabel else MultiOutputRegressorFactory
-                estimator_cls = factory(original_cls)
+                estimator_cls = factory(cast(type[BaseEstimator], original_cls))
                 if kwargs.get("verbose", False):
                     print(
                         f"[SKLearnPredictor] Wrapping {original_cls.__name__} with "

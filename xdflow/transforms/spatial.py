@@ -247,7 +247,7 @@ def _map_from_grid(
 
     # Write back only numeric channels; leave others untouched
     # Build an indexer that selects numeric channels along the channel axis
-    idx = [slice(None)] * output_data.values.ndim
+    idx: list[Any] = [slice(None)] * output_data.values.ndim
     idx[channel_axis_index] = np.where(is_numeric)[0]
     output_data.values[tuple(idx)] = permuted_gridded_values
 
@@ -265,6 +265,8 @@ def _pyramid_to_dataarray(
     """
     Converts a pyramid of spatial features into a single feature array.
     """
+    if original_dims is None or original_coords is None or original_sizes is None:
+        raise ValueError("original_dims, original_coords, and original_sizes are required.")
     levels_to_keep = [pyramid[-1]] if keep_only_top_pyramid else pyramid[1:]
 
     other_dims = [d for d in original_dims if d != "channel"]
@@ -648,7 +650,7 @@ class GaussianPyramidTransform(Transform):
                 break
 
             if self.handle_nans and np.any(np.isnan(current_stack)):
-                current_stack = _fill_nan_mean_neighbors(current_stack)
+                current_stack = _fill_nan_mean_neighbors(xr.DataArray(current_stack, dims=gridded_data.dims)).values
 
             # TODO: skip outer edges for first level?
 

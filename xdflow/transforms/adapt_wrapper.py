@@ -28,7 +28,13 @@ class AdaptWrapperStrategy(AdaptiveStrategy):
     Domains are determined by the group_coord.
     """
 
-    def __init__(self, group_coord: str, target_group: str | int | float, n_jobs: int = 1, adapt_sel: dict = None):
+    def __init__(
+        self,
+        group_coord: str,
+        target_group: str | int | float,
+        n_jobs: int = 1,
+        adapt_sel: dict[str, Any] | None = None,
+    ):
         """
         Initialize the AdaptWrapperStrategy.
 
@@ -141,9 +147,9 @@ class AdaptWrapperTransform(AdaptiveTransform):
         group_coord: str,
         target_group: str | int | float,
         random_state: int = 0,
-        adapt_sel: dict = None,
-        sel: dict = None,
-        drop_sel: dict = None,
+        adapt_sel: dict[str, Any] | None = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         strategy_name = "adapt_wrapper"
@@ -175,9 +181,7 @@ class AdaptWrapperTransform(AdaptiveTransform):
         else:
             self._specifies_transform_domain = False
 
-    def _fit_adapt(
-        self, source_container: DataContainer, target_container: DataContainer, **kwargs
-    ) -> "AdaptiveTransform":
+    def _fit_adapt(self, source_container: DataContainer, target_container: DataContainer, **kwargs) -> None:
         # get source data
         source_data = self._prepare_data(source_container.data)
         source_input = source_data.values

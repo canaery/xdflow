@@ -371,5 +371,5 @@ class RemoveOutliersTransform(Transform):
         transformed_data = data.clip(lower_bound, upper_bound)
         return DataContainer(transformed_data)
 
-    def get_expected_output_dims(self, input_dims: tuple[str]) -> tuple[str]:
+    def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
         return input_dims

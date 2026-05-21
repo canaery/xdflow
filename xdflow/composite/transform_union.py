@@ -285,14 +285,14 @@ class TransformUnion(CompositeTransform):
 
         return shared_dims_ordered
 
-    def _concatenate_outputs(self, outputs: list[xr.DataArray]) -> DataContainer:
+    def _concatenate_outputs(self, outputs: list[xr.DataArray]) -> xr.DataArray:
         """Concatenates the outputs along the appropriate join dimension using xarray's native functionality."""
 
         if not outputs:
             raise ValueError("No arrays provided.")
 
         # Validate dimension compatibility first
-        output_dims = [output.dims for output in outputs]
+        output_dims = [tuple(str(dim) for dim in output.dims) for output in outputs]
         self._validate_and_get_shared_output_dims(output_dims)
 
         # Determine final join dimension name

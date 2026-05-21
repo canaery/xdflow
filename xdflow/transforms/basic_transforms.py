@@ -188,8 +188,9 @@ class SampleWeightTransform(Transform):
 
     def get_params(self, deep: bool = True) -> dict[str, Any]:
         params = super().get_params(deep=deep)
-        if self.weight_map is not None:
-            for key, value in self.weight_map.items():
+        weight_map = self.weight_map
+        if weight_map is not None:
+            for key, value in weight_map.items():
                 params[f"weight_map__{key}"] = value
         return params
 
@@ -233,14 +234,15 @@ class SampleWeightTransform(Transform):
         source_coord = data.coords[self.coord_name]
         coord_values = source_coord.values
 
-        if self.weight_map is not None:
+        weight_map = self.weight_map
+        if weight_map is not None:
             # Convert numpy scalar types to Python native types for dict lookup
             # (numpy.int64 != int in dict.get(), causing all lookups to fail)
             def safe_lookup(value):
                 # Convert numpy scalars to Python native types
                 if hasattr(value, "item"):
                     value = value.item()
-                return self.weight_map.get(value, self.default_weight)
+                return weight_map.get(value, self.default_weight)
 
             vectorized_lookup = np.vectorize(safe_lookup)
             weights = vectorized_lookup(coord_values)
@@ -632,7 +634,7 @@ class FunctionTransform(Transform):
     def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
         if self.expected_output_dims is not None:
             warnings.warn(
-                f"Expected output dimensions are manually specified for {self.func.__name__}. Might be inaccurate since not computed."
+                f"Expected output dimensions are manually specified for {getattr(self.func, '__name__', 'unknown')}. Might be inaccurate since not computed."
             )
             return self.expected_output_dims
 

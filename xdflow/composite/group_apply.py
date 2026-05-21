@@ -1,6 +1,6 @@
 import warnings
 from collections.abc import Hashable
-from typing import Literal
+from typing import Literal, cast
 
 import numpy as np
 import xarray as xr
@@ -492,6 +492,10 @@ class GroupApplyTransform(CompositeTransform):
                     f"Transform for group '{group_val}' is not a Predictor. "
                     f"predict() requires all fitted transforms to be Predictors."
                 )
+        fitted_predictors = {
+            group_val: cast(Predictor, fitted_transform)
+            for group_val, fitted_transform in self.per_group_fitted.items()
+        }
 
         # set the combined group coord values and discover groups
         container = self._set_combined_group_coord_values(container)
@@ -505,7 +509,7 @@ class GroupApplyTransform(CompositeTransform):
 
             if group_val in self.per_group_fitted:
                 # Use fitted predictor for seen group
-                fitted_predictor = self.per_group_fitted[group_val]
+                fitted_predictor = fitted_predictors[group_val]
                 prediction = fitted_predictor.predict(group_container, **kwargs)
                 group_outputs.append(prediction.data)
             else:
@@ -523,12 +527,12 @@ class GroupApplyTransform(CompositeTransform):
 
                     predictions = Parallel(n_jobs=self.n_jobs)(
                         delayed(predict_with_fitted)(fitted_predictor, group_container)
-                        for fitted_predictor in self.per_group_fitted.values()
+                        for fitted_predictor in fitted_predictors.values()
                     )
                 else:
                     # Sequential prediction
                     predictions = []
-                    for fitted_predictor in self.per_group_fitted.values():
+                    for fitted_predictor in fitted_predictors.values():
                         predictions.append(fitted_predictor.predict(group_container, **kwargs))
 
                 # Average predictions
@@ -579,6 +583,10 @@ class GroupApplyTransform(CompositeTransform):
                     f"Transform for group '{group_val}' is not a classifier. "
                     f"predict_proba() requires all fitted transforms to be classifiers."
                 )
+        fitted_predictors = {
+            group_val: cast(Predictor, fitted_transform)
+            for group_val, fitted_transform in self.per_group_fitted.items()
+        }
 
         # set the combined group coord values and discover groups
         container = self._set_combined_group_coord_values(container)
@@ -592,7 +600,7 @@ class GroupApplyTransform(CompositeTransform):
 
             if group_val in self.per_group_fitted:
                 # Use fitted predictor for seen group
-                fitted_predictor = self.per_group_fitted[group_val]
+                fitted_predictor = fitted_predictors[group_val]
                 probabilities = fitted_predictor.predict_proba(group_container, **kwargs)
                 group_outputs.append(probabilities.data)
             else:
@@ -610,12 +618,12 @@ class GroupApplyTransform(CompositeTransform):
 
                     probabilities = Parallel(n_jobs=self.n_jobs)(
                         delayed(predict_proba_with_fitted)(fitted_predictor, group_container)
-                        for fitted_predictor in self.per_group_fitted.values()
+                        for fitted_predictor in fitted_predictors.values()
                     )
                 else:
                     # Sequential prediction
                     probabilities = []
-                    for fitted_predictor in self.per_group_fitted.values():
+                    for fitted_predictor in fitted_predictors.values():
                         probabilities.append(fitted_predictor.predict_proba(group_container, **kwargs))
 
                 # Average probabilities

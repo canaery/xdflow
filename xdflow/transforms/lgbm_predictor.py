@@ -188,7 +188,7 @@ class LGBMPredictor(SKLearnPredictor):
         sample_weight = self._extract_sample_weights(data, sample_index)
 
         # Split into train/validation sets
-        split_kwargs = {
+        split_kwargs: dict[str, Any] = {
             "test_size": self.validation_size,
             "random_state": self.validation_seed,
         }

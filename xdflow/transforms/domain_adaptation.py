@@ -408,7 +408,7 @@ class AdaptiveTransform(Transform, ABC):
     """
 
     # This map should be overridden by concrete aligner classes
-    _STRATEGY_MAP = {}  # dict[strategy_name (str): AdaptiveStrategy]
+    _STRATEGY_MAP: dict[str, type[AdaptiveStrategy]] = {}  # dict[strategy_name (str): AdaptiveStrategy]
 
     # Class attributes required by Transform base classq1
     is_stateful: bool = True
@@ -449,7 +449,7 @@ class AdaptiveTransform(Transform, ABC):
                 f"Available strategies: {list(self.__class__._STRATEGY_MAP.keys())}"
             )
 
-        strategy_class = self.__class__._STRATEGY_MAP.get(strategy_name)
+        strategy_class = self.__class__._STRATEGY_MAP[strategy_name]
 
         # make sure required strategyargs are in kwargs
         sig = signature(strategy_class.__init__)
@@ -556,7 +556,7 @@ class SingleTargetAligner(AdaptiveTransform, ABC):
         self._strategy_class: SingleTargetStrategy = self.__class__._STRATEGY_MAP[strategy_name]
 
     @abstractmethod
-    def _fit_target(self, data_container: DataContainer, **kwargs) -> dict[str, Any]:
+    def _fit_target(self, data_container: DataContainer, /, **kwargs) -> dict[str, Any]:
         """Abstract method for fitting the target params.
 
         Args:
@@ -569,7 +569,7 @@ class SingleTargetAligner(AdaptiveTransform, ABC):
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _adapt_source(self, data_container: DataContainer, **kwargs) -> dict[str, Any]:
+    def _adapt_source(self, data_container: DataContainer, /, **kwargs) -> dict[str, Any]:
         """Abstract method for fitting the source params for a single group.
 
         Args:
@@ -583,7 +583,7 @@ class SingleTargetAligner(AdaptiveTransform, ABC):
 
     @abstractmethod
     def _adapted_transform(
-        self, data_container: DataContainer, adapted_params: dict, target_params: dict, **kwargs
+        self, data_container: DataContainer, adapted_params: dict, target_params: dict, /, **kwargs
     ) -> DataContainer:
         """Abstract method for transforming the data for a single group.
 
@@ -622,7 +622,7 @@ class JointGroupAligner(AdaptiveTransform, ABC):
         self.output_dim_name = output_dim_name
 
     @abstractmethod
-    def _fit_joint(self, group_containers: dict, **kwargs) -> dict[Hashable, dict[str, Any]]:
+    def _fit_joint(self, group_containers: dict, /, **kwargs) -> dict[Hashable, dict[str, Any]]:
         """Abstract method for jointly fitting all groups.
 
         Args:
@@ -635,7 +635,7 @@ class JointGroupAligner(AdaptiveTransform, ABC):
         raise NotImplementedError("Subclasses must implement this method.")
 
     @abstractmethod
-    def _adapted_transform(self, data_container: DataContainer, adapted_params: dict, **kwargs) -> DataContainer:
+    def _adapted_transform(self, data_container: DataContainer, adapted_params: dict, /, **kwargs) -> DataContainer:
         """Abstract method for transforming the data for a single group.
 
         Args:

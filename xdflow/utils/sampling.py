@@ -88,7 +88,7 @@ def get_da_by_conditions(da: xr.DataArray, conditions: dict[str, Any]) -> xr.Dat
 
 
 def train_test_split_container(
-    container: DataContainer, target_coord: str, test_size: float = 0.2, random_state: int = None
+    container: DataContainer, target_coord: str, test_size: float = 0.2, random_state: int | None = None
 ) -> tuple[DataContainer, DataContainer]:
     """
     Split a container into train and test sets.

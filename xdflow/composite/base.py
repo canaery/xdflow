@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass
 from inspect import Parameter, signature
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from xdflow.core.base import Predictor, Transform
 from xdflow.core.data_container import DataContainer
@@ -30,7 +30,7 @@ def _configure_transform_for_inference(
 
     if hasattr(transform, "use_cache"):
         try:
-            transform.use_cache = False
+            cast(Any, transform).use_cache = False
         except AttributeError:
             pass
 
@@ -40,7 +40,7 @@ def _configure_transform_for_inference(
 
     if set_n_jobs_single and hasattr(transform, "n_jobs"):
         try:
-            transform.n_jobs = 1
+            cast(Any, transform).n_jobs = 1
         except AttributeError:
             pass
 
@@ -85,6 +85,8 @@ class CompositeTransform(Transform, ABC):
     - Subclasses should ensure that child collections (e.g., self.steps) are set
       before super().__init__ so is_stateful can be computed from children.
     """
+
+    transform_from_name: dict[str, Transform]
 
     def __init__(
         self,

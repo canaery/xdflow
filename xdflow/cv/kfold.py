@@ -1,11 +1,30 @@
 import warnings
 from collections.abc import Callable, Hashable, Iterator
+from typing import cast
 
 import numpy as np
 from sklearn.model_selection import StratifiedKFold, train_test_split
 
 from xdflow.core.data_container import DataContainer
 from xdflow.cv.base import CrossValidator
+
+
+def _as_group_list(groups: list[Hashable] | Hashable | None) -> list[Hashable] | None:
+    if groups is None:
+        return None
+    if isinstance(groups, list):
+        return cast(list[Hashable], groups)
+    return [groups]
+
+
+def _combine_group_and_label_strings(groups: np.ndarray, labels: np.ndarray) -> np.ndarray | list[str]:
+    """Build stratification labels from group and target labels using public NumPy APIs."""
+    try:
+        group_strings = groups.astype(str)
+        label_strings = labels.astype(str)
+        return cast(np.ndarray, np.char.add(np.char.add(group_strings, "_"), label_strings))
+    except (TypeError, AttributeError):
+        return [str(group) + "_" + str(label) for group, label in zip(groups, labels)]
 
 
 class KFoldValidator(CrossValidator):
@@ -21,7 +40,7 @@ class KFoldValidator(CrossValidator):
         n_splits: int = 5,
         shuffle: bool = True,
         random_state: int = 0,
-        test_size: float = None,
+        test_size: float | None = None,
         pooling_score_weight: float = 0.0,
         scoring: str | Callable | None = None,
         stratify_coord: str | None = None,
@@ -146,7 +165,7 @@ class KFoldValidator(CrossValidator):
             Iterator yielding (train_indices, validation_indices) for each fold
         """
         if len(indices_to_split) == 0:
-            return iter([])
+            return
 
         # Select the relevant part of the container first
         cv_container = container.data.sel(trial=indices_to_split)
@@ -224,12 +243,12 @@ class GroupedKFoldValidator(CrossValidator):
         n_splits: int = 5,
         shuffle: bool = True,
         random_state: int = 0,
-        test_size: float = None,
+        test_size: float | None = None,
         pooling_score_weight: float = 0.0,
-        group_coord: str = None,
-        train_groups: list[Hashable] | Hashable = None,
-        val_groups: list[Hashable] | Hashable = None,
-        test_groups: list[Hashable] | Hashable = None,
+        group_coord: str | None = None,
+        train_groups: list[Hashable] | Hashable | None = None,
+        val_groups: list[Hashable] | Hashable | None = None,
+        test_groups: list[Hashable] | Hashable | None = None,
         scoring: str | Callable | None = None,
         stratify_coord: str | None = None,
         stratify_by_group: bool = True,
@@ -282,16 +301,9 @@ class GroupedKFoldValidator(CrossValidator):
         self.group_coord = group_coord
         self.stratify_by_group = stratify_by_group
 
-        if not isinstance(train_groups, list) and train_groups is not None:
-            train_groups = [train_groups]
-        if not isinstance(val_groups, list) and val_groups is not None:
-            val_groups = [val_groups]
-        if not isinstance(test_groups, list) and test_groups is not None:
-            test_groups = [test_groups]
-
-        self.train_groups = train_groups
-        self.val_groups = val_groups
-        self.test_groups = test_groups
+        self.train_groups = _as_group_list(train_groups)
+        self.val_groups = _as_group_list(val_groups)
+        self.test_groups = _as_group_list(test_groups)
 
     def _check_groups(self, container: DataContainer):
         """Validates the dimension that the group_coord indexes. Checks that the specified groups are available in the data."""
@@ -361,11 +373,7 @@ class GroupedKFoldValidator(CrossValidator):
 
         # Optionally combine group and label for stratification
         if self.stratify_by_group:
-            try:
-                # astype(str) is important if labels or groups are not strings
-                stratify_labels = np.core.defchararray.add(all_groups.astype(str), labels.astype(str))
-            except (TypeError, AttributeError):  # For object arrays
-                stratify_labels = [str(grp) + "_" + str(lbl) for grp, lbl in zip(all_groups, labels)]
+            stratify_labels = _combine_group_and_label_strings(all_groups, labels)
         else:
             stratify_labels = labels
 
@@ -379,11 +387,11 @@ class GroupedKFoldValidator(CrossValidator):
         ):  # if both are specified, otherwise keep all and split later
             # keep only indices that are in either train or val groups
             train_val_groups = set(self.train_groups + self.val_groups)
-            train_val_indices = train_val_indices[np.isin(all_groups[train_val_indices], train_val_groups)]
+            train_val_indices = train_val_indices[np.isin(all_groups[train_val_indices], list(train_val_groups))]
 
         if self.test_groups is not None:
             # keep only indices that are in test_groups
-            holdout_indices = holdout_indices[np.isin(all_groups[holdout_indices], self.test_groups)]
+            holdout_indices = holdout_indices[np.isin(all_groups[holdout_indices], np.asarray(self.test_groups))]
 
         return train_val_indices, holdout_indices
 
@@ -403,7 +411,7 @@ class GroupedKFoldValidator(CrossValidator):
             Iterator yielding (train_indices, validation_indices) for each fold
         """
         if len(indices_to_split) == 0:
-            return iter([])
+            return
 
         # Initialize stratified k-fold splitter
         skf = StratifiedKFold(n_splits=self.n_splits, shuffle=self.shuffle, random_state=self.random_state)
@@ -421,11 +429,7 @@ class GroupedKFoldValidator(CrossValidator):
 
         # Optionally combine group and label for stratification
         if self.stratify_by_group:
-            try:
-                # astype(str) is important if labels or groups are not strings
-                stratify_labels = np.core.defchararray.add(cv_groups.astype(str), labels_array.astype(str))
-            except (TypeError, AttributeError):  # For object arrays
-                stratify_labels = [str(grp) + "_" + str(lbl) for grp, lbl in zip(cv_groups, labels_array)]
+            stratify_labels = _combine_group_and_label_strings(cv_groups, labels_array)
         else:
             stratify_labels = labels_array
 
@@ -433,8 +437,8 @@ class GroupedKFoldValidator(CrossValidator):
         for train_pos, val_pos in skf.split(np.arange(len(labels_array)), stratify_labels):
             # keep only indices that are relevant to the specified groups
             if self.train_groups is not None:
-                train_pos = train_pos[np.isin(cv_groups[train_pos], self.train_groups)]
+                train_pos = train_pos[np.isin(cv_groups[train_pos], np.asarray(self.train_groups))]
             if self.val_groups is not None:
-                val_pos = val_pos[np.isin(cv_groups[val_pos], self.val_groups)]
+                val_pos = val_pos[np.isin(cv_groups[val_pos], np.asarray(self.val_groups))]
 
             yield cv_container.trial.values[train_pos], cv_container.trial.values[val_pos]

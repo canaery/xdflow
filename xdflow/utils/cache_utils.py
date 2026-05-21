@@ -34,7 +34,7 @@ DEFAULT_MAX_CACHE_SIZE = DEFAULT_MAX_CACHE_SIZE_GB * 1024 * 1024 * 1024
 DEFAULT_MAX_CACHE_AGE = 7
 
 
-def _get_module_hash_from_obj(obj: Any) -> str:
+def _get_module_hash_from_obj(obj: Any) -> str | None:
     """Get hash of the module containing the object."""
     if inspect.isclass(obj):
         module = inspect.getmodule(obj)
@@ -75,9 +75,13 @@ def get_module_hashes_for_object(instance: Any) -> dict[str, str]:
     module_hashes: dict[str, str] = {}
     for obj in all_objects:
         try:
-            module_path = inspect.getsourcefile(inspect.getmodule(obj.__class__))
-            if module_path and module_path not in module_hashes:
-                module_hashes[module_path] = _get_module_hash_from_obj(obj)
+            module = inspect.getmodule(obj.__class__)
+            if module is None:
+                continue
+            module_path = inspect.getsourcefile(module)
+            module_hash = _get_module_hash_from_obj(obj)
+            if module_path and module_hash is not None and module_path not in module_hashes:
+                module_hashes[module_path] = module_hash
         except TypeError:
             # Happens for some built-in types
             continue
@@ -165,9 +169,13 @@ def get_pipeline_cache_key_dict(func: Callable, instance: Any, *args, **kwargs) 
     module_hashes = {}
     for obj in all_objects:
         try:
-            module_path = inspect.getsourcefile(inspect.getmodule(obj.__class__))
-            if module_path and module_path not in module_hashes:
-                module_hashes[module_path] = _get_module_hash_from_obj(obj)
+            module = inspect.getmodule(obj.__class__)
+            if module is None:
+                continue
+            module_path = inspect.getsourcefile(module)
+            module_hash = _get_module_hash_from_obj(obj)
+            if module_path and module_hash is not None and module_path not in module_hashes:
+                module_hashes[module_path] = module_hash
         except TypeError:
             pass  # Happens for some built-in types
 

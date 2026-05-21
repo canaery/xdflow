@@ -1,5 +1,5 @@
 import warnings
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Hashable, Iterator
 
 import numpy as np
 
@@ -22,11 +22,11 @@ class LeaveGroupOutValidator(CrossValidator):
     def __init__(
         self,
         group_coord: str,
-        test_group_ids: list = None,
-        validation_group_ids: list = None,
+        test_group_ids: list[Hashable] | None = None,
+        validation_group_ids: list[Hashable] | None = None,
         pooling_score_weight: float = 0.0,
         scoring: str | Callable | None = None,
-        n_splits: int = None,
+        n_splits: int | None = None,
         random_state: int = 0,
         exclude_intertrial_from_scoring: bool = False,
         exclude_offsets_from_scoring: bool = False,
@@ -103,7 +103,7 @@ class LeaveGroupOutValidator(CrossValidator):
             return all_trials, np.array([])
 
         # Find trials belonging to holdout sessions
-        holdout_mask = np.isin(container.data.coords[self.group_coord].values, self.test_group_ids)
+        holdout_mask = np.isin(container.data.coords[self.group_coord].values, np.asarray(self.test_group_ids))
         holdout_indices = all_trials[holdout_mask]
         train_val_indices = all_trials[~holdout_mask]
 
@@ -202,11 +202,11 @@ class LeaveSessionOutValidator(LeaveGroupOutValidator):
 
     def __init__(
         self,
-        test_session_ids: list = None,
-        validation_session_ids: list = None,
+        test_session_ids: list[Hashable] | None = None,
+        validation_session_ids: list[Hashable] | None = None,
         pooling_score_weight: float = 0.0,
         scoring: str | Callable | None = None,
-        n_splits: int = None,
+        n_splits: int | None = None,
         random_state: int = 0,
         exclude_intertrial_from_scoring: bool = False,
         exclude_offsets_from_scoring: bool = False,
@@ -266,11 +266,11 @@ class LeaveAnimalOutValidator(LeaveGroupOutValidator):
 
     def __init__(
         self,
-        test_animal_ids: list = None,
-        validation_animal_ids: list = None,
+        test_animal_ids: list[Hashable] | None = None,
+        validation_animal_ids: list[Hashable] | None = None,
         pooling_score_weight: float = 0.0,
         scoring: str | Callable | None = None,
-        n_splits: int = None,
+        n_splits: int | None = None,
         random_state: int = 0,
         exclude_intertrial_from_scoring: bool = False,
         exclude_offsets_from_scoring: bool = False,

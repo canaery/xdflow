@@ -41,8 +41,12 @@ def plot_confusion_matrix(
 
     if ylabels is None:
         ylabels = labels
+    else:
+        ylabels = list(ylabels)
     if xlabels is None:
         xlabels = labels
+    else:
+        xlabels = list(xlabels)
 
     if ax is None:
         fig, ax = plt.subplots(figsize=(9, 7))
@@ -114,8 +118,12 @@ def plot_combined_confusion_matrix(
     labels = list(labels)
     if ylabels is None:
         ylabels = labels
+    else:
+        ylabels = list(ylabels)
     if xlabels is None:
         xlabels = labels
+    else:
+        xlabels = list(xlabels)
     ax.set_xticks(np.arange(len(xlabels)))
     ax.set_yticks(np.arange(len(ylabels)))
     ax.set_xticklabels(xlabels, rotation=45, ha="right")

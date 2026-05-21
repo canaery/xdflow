@@ -6,7 +6,7 @@ import time
 import warnings
 from abc import ABC, abstractmethod
 from inspect import Parameter, signature
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import numpy as np
 import pandas as pd
@@ -220,7 +220,7 @@ class Transform(ABC):
             container = container.drop_sel(**self.drop_sel)
         return container
 
-    def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
+    def get_expected_output_dims(self, input_dims: tuple[str, ...], /) -> tuple[str, ...]:
         """Determines expected output dims based on manually inputed input_dims"""
         if self.output_dims:
             return self.output_dims
@@ -228,7 +228,7 @@ class Transform(ABC):
         raise NotImplementedError("Subclasses must either specify output_dims or implement get_expected_output_dims.")
 
     @abstractmethod
-    def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
+    def _transform(self, container: DataContainer, /, **kwargs) -> DataContainer:
         """
         Applies the transformation. Must be implemented by all subclasses.
         """
@@ -280,7 +280,7 @@ class Transform(ABC):
 
         return self._log_history(transformed_container)
 
-    def _check_transform_sel_output(self, data_to_transform: DataContainer, transformed_part: DataContainer) -> bool:
+    def _check_transform_sel_output(self, data_to_transform: DataContainer, transformed_part: DataContainer) -> None:
         """
         If the transform changes dims/sizes/coords, raise an error.
         """
@@ -341,7 +341,7 @@ class Transform(ABC):
 
         return result
 
-    def _fit(self, container: DataContainer, **kwargs) -> "Transform":
+    def _fit(self, container: DataContainer, /, **kwargs) -> "Transform":
         """
         Fits the transform to the data.
 
@@ -623,7 +623,7 @@ class Predictor(Transform, ABC):
             raise TypeError(f"{self.__class__.__name__} is configured as a regressor; labels are undefined.")
 
         if self.is_multilabel:
-            return self.target_coord_list
+            return list(self.target_coord_list)
 
         if self.encoder is None:
             raise RuntimeError(
@@ -659,6 +659,8 @@ class Predictor(Transform, ABC):
         Args:
             data: The data to fit the encoder on
         """
+        if self.encoder is None:
+            raise ValueError(f"{self.__class__.__name__} requires an encoder before fitting target labels.")
         self.encoder.fit(data.coords[self.target_coord].values)
         self.set_encoder(self.encoder)
 
@@ -799,8 +801,8 @@ class Predictor(Transform, ABC):
         fitted = self._fit(container, **kwargs)
 
         # After fitting, check if target coordinates were resolved (for pattern matching)
-        if hasattr(fitted, "_resolved_target_coords"):
-            resolved = fitted._resolved_target_coords
+        if isinstance(fitted, Predictor) and hasattr(fitted, "_resolved_target_coords"):
+            resolved = cast(list[str], fitted._resolved_target_coords)
             fitted.target_coord_list = resolved
             fitted.is_multi_target = len(resolved) > 1
 
@@ -835,10 +837,12 @@ class Predictor(Transform, ABC):
         # Apply selection once
         container = self._apply_selection(container)
         effective_transform_sel = self._get_effective_transform_sel(container)
-        perform_transform_sel = effective_transform_sel and self._supports_transform_sel
+        perform_transform_sel = bool(effective_transform_sel and self._supports_transform_sel)
 
         # Get effective container
-        selected_container = container.sel(**effective_transform_sel) if perform_transform_sel else container
+        selected_container = (
+            container.sel(**cast(dict[str, Any], effective_transform_sel)) if perform_transform_sel else container
+        )
 
         # Default fit container is the selected view; classifiers override with encoded targets
         container_for_fit = selected_container
@@ -856,7 +860,7 @@ class Predictor(Transform, ABC):
 
         # After fitting, check if target coordinates were resolved (for pattern matching)
         if hasattr(self, "_resolved_target_coords"):
-            resolved = self._resolved_target_coords
+            resolved = cast(list[str], self._resolved_target_coords)
             self.target_coord_list = resolved
             self.is_multi_target = len(resolved) > 1
 
@@ -869,7 +873,7 @@ class Predictor(Transform, ABC):
             self._check_transform_sel_output(selected_container, transformed_container)
             # Update the full container with the transformed part
             new_container = container.copy(deep=False)  # Shallow copy sufficient
-            new_container.data.loc[effective_transform_sel] = transformed_container.data
+            new_container.data.loc[cast(dict[str, Any], effective_transform_sel)] = transformed_container.data
             transformed_container = new_container
 
         result = self._log_history(transformed_container)
@@ -946,17 +950,20 @@ class Predictor(Transform, ABC):
                 f"probs has {probs_2d.shape[1]} columns but encoded_classes has length {len(encoded_classes)}."
             )
 
-        class_labels = self.encoder.inverse_transform(encoded_classes)  # decode the class encodings to labels
+        if self.encoder is None:
+            raise ValueError(f"{self.__class__.__name__} requires an encoder before aligning probabilities.")
+        encoder = self.encoder
+        class_labels = encoder.inverse_transform(encoded_classes)  # decode the class encodings to labels
 
-        if len(class_labels) != len(self.encoder.classes_):
+        if len(class_labels) != len(encoder.classes_):
             warnings.warn(
-                f"The number of class labels ({len(class_labels)}) does not match the number of encoder classes ({len(self.encoder.classes_)}). Missing classes will be zero-filled.",
+                f"The number of class labels ({len(class_labels)}) does not match the number of encoder classes ({len(encoder.classes_)}). Missing classes will be zero-filled.",
                 stacklevel=2,
             )
 
         class_to_col: dict[Any, int] = {cls: j for j, cls in enumerate(class_labels)}
-        aligned = np.zeros((probs_2d.shape[0], len(self.encoder.classes_)), dtype=probs_2d.dtype)
-        for j, cls in enumerate(self.encoder.classes_):
+        aligned = np.zeros((probs_2d.shape[0], len(encoder.classes_)), dtype=probs_2d.dtype)
+        for j, cls in enumerate(encoder.classes_):
             if cls in class_to_col:
                 aligned[:, j] = probs_2d[:, class_to_col[cls]]
         return aligned
@@ -1118,6 +1125,8 @@ class Predictor(Transform, ABC):
             # Use the core _predict logic to get predictions
             predictions = self._predict(data, **kwargs)
             if self.is_classifier and not self.is_multilabel:
+                if self.encoder is None:
+                    raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier predictions.")
                 predictions = self.encoder.inverse_transform(predictions)
 
             # Handle both 1D (single target) and 2D (multi-target/multilabel) predictions
@@ -1137,6 +1146,8 @@ class Predictor(Transform, ABC):
         output_coords = self._get_output_coords(data)
 
         if self.proba and not self.is_multilabel:
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
             output_coords[output_dim_name] = self.encoder.classes_
         elif predictions.ndim == 2 and (self.is_multi_target or self.is_multilabel):
             # Multi-target/multilabel: use target coordinate names
@@ -1207,6 +1218,8 @@ class Predictor(Transform, ABC):
 
         # Inverse transform the prediction if encoded
         if self.is_classifier and not self.is_multilabel:
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier predictions.")
             predictions = self.encoder.inverse_transform(predictions)
             data = self._reset_target_coord(data)
 
@@ -1266,6 +1279,8 @@ class Predictor(Transform, ABC):
             assert probabilities.ndim == 2, f"Probabilities should have 2 dimensions, but got {probabilities.ndim}"
             data = self._reset_target_coord(data)
             output_coords = self._get_output_coords(data)
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
             output_coords["class"] = self.encoder.classes_
 
             output_da = xr.DataArray(

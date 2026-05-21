@@ -152,6 +152,7 @@ class LocalZCAWhitening(Transform):
                 n_to_keep = min(n_components, int(self.n_components))
         else:
             # pca_frac_to_keep specified - use fraction of all components
+            assert self.pca_frac_to_keep is not None
             n_to_keep = int(np.ceil(n_components * self.pca_frac_to_keep))
 
         # 2. Compute the exponent for whitening based on the strength parameter
@@ -500,6 +501,7 @@ class GlobalZCAWhitening(Transform):
                 n_to_keep = min(n_components, int(self.n_components))
         else:
             # pca_frac_to_keep specified - use fraction of all components
+            assert self.pca_frac_to_keep is not None
             n_to_keep = int(np.ceil(n_components * self.pca_frac_to_keep))
 
         exponent = -self.whitening_strength / 2.0
@@ -540,6 +542,8 @@ class GlobalZCAWhitening(Transform):
         # Compute covariance/second-moment honoring center mode
         n_samples = x.shape[1]
         if self._center_mode == "true":
+            if self.channel_mean is None:
+                raise RuntimeError("channel_mean was not computed during fit.")
             x_centered = x - self.channel_mean.values[:, None]
             covariance = (x_centered @ x_centered.T) / (n_samples - 1)
         elif self._center_mode == "false_oldstyle":
@@ -752,6 +756,7 @@ class GlobalColoringProjection(Transform):
                 n_to_keep = min(n_components, int(self.n_components))
         else:
             # pca_frac_to_keep specified - use fraction of all components
+            assert self.pca_frac_to_keep is not None
             n_to_keep = int(np.ceil(n_components * self.pca_frac_to_keep))
 
         # The "coloring" exponent is positive, opposite of whitening
@@ -792,6 +797,8 @@ class GlobalColoringProjection(Transform):
         # Compute covariance/second-moment honoring center mode
         n_samples = x.shape[1]
         if self._center_mode == "true":
+            if self.channel_mean is None:
+                raise RuntimeError("channel_mean was not computed during fit.")
             x_centered = x - self.channel_mean.values[:, None]
             covariance = (x_centered @ x_centered.T) / (n_samples - 1)
         elif self._center_mode == "false_oldstyle":

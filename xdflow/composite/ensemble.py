@@ -112,16 +112,25 @@ def _predict_member_with_encoded(
     """
     Helper that prefers encoded entrypoints when available, otherwise falls back to standard predict APIs.
     """
+    predictive_transform = _as_predictive_transform(transform)
     if proba:
         predict_fn = getattr(transform, "_predict_proba_from_encoded", None)
         if callable(predict_fn):
             return predict_fn(encoded_container.copy(deep=True), **kwargs)
-        return transform.predict_proba(original_container.copy(deep=True), **kwargs)
+        return predictive_transform.predict_proba(original_container.copy(deep=True), **kwargs)
 
     predict_fn = getattr(transform, "_predict_from_encoded", None)
     if callable(predict_fn):
         return predict_fn(encoded_container.copy(deep=True), **kwargs)
-    return transform.predict(original_container.copy(deep=True), **kwargs)
+    return predictive_transform.predict(original_container.copy(deep=True), **kwargs)
+
+
+def _as_predictive_transform(transform: Transform) -> Predictor | CompositeTransform:
+    if isinstance(transform, Predictor):
+        return transform
+    if isinstance(transform, CompositeTransform) and transform.is_predictor:
+        return transform
+    raise TypeError(f"Transform {type(transform).__name__} does not expose prediction methods.")
 
 
 @dataclass
@@ -309,7 +318,7 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         return True
 
     @property
-    def children(self) -> list[Predictor]:
+    def children(self) -> list[Transform]:
         """Returns the transform objects from the ensemble members."""
         return [member.transform for member in self.members]
 
@@ -456,7 +465,7 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         for member in self.members:
             try:
                 # Get predictions from this member's transform
-                predictions = member.transform.predict(calibration_container, **kwargs)
+                predictions = _as_predictive_transform(member.transform).predict(calibration_container, **kwargs)
                 pred_values = predictions.data.values
 
                 # Ensure both target and prediction data are compatible for scoring
@@ -526,7 +535,7 @@ class EnsemblePredictor(CompositeTransform, Predictor):
 
         return self
 
-    def fit_transform(self, container: DataContainer, **kwargs) -> "EnsemblePredictor":
+    def fit_transform(self, container: DataContainer, **kwargs) -> DataContainer:
         """
         Fits and transforms all ensemble members.
 
@@ -750,6 +759,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         class_coord = ensemble_proba.coords.get("class")
         if class_coord is not None:
             class_labels = np.asarray(class_coord.values)
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
             encoded_classes = self.encoder.transform(class_labels)
         else:
             encoded_classes = np.arange(ensemble_proba.shape[-1])
@@ -758,6 +769,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
 
         # Build probability DataContainer
         output_coords = self._get_output_coords(container.data)
+        if self.encoder is None:
+            raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
         output_coords["class"] = self.encoder.classes_
 
         proba_da = xr.DataArray(
@@ -854,6 +867,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         class_coord = ensemble_proba.coords.get("class")
         if class_coord is not None:
             class_labels = np.asarray(class_coord.values)
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
             encoded_classes = self.encoder.transform(class_labels)
         else:
             encoded_classes = np.arange(ensemble_proba.shape[-1])
@@ -862,6 +877,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
 
         # Build probability DataContainer
         output_coords = self._get_output_coords(container.data)
+        if self.encoder is None:
+            raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
         output_coords["class"] = self.encoder.classes_
 
         proba_da = xr.DataArray(
@@ -930,6 +947,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         class_coord = ensemble_proba.coords.get("class")
         if class_coord is not None:
             class_labels = np.asarray(class_coord.values)
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
             encoded_classes = self.encoder.transform(class_labels)
         else:
             encoded_classes = np.arange(ensemble_proba.shape[-1])
@@ -939,6 +958,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
 
         # Build output DataContainer
         output_coords = self._get_output_coords(original_container.data)
+        if self.encoder is None:
+            raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
         output_coords["class"] = self.encoder.classes_
 
         output_da = xr.DataArray(
@@ -969,6 +990,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
 
         # Return encoded predictions as expected by base class
         if self.is_classifier:
+            if self.encoder is None:
+                raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier predictions.")
             return self.encoder.transform(predictions)
         return predictions
 
@@ -992,6 +1015,8 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         # Extract probabilities and class labels
         probabilities = result_container.data.values
         class_labels = result_container.data.coords["class"].values
+        if self.encoder is None:
+            raise ValueError(f"{self.__class__.__name__} requires an encoder for classifier probabilities.")
         encoded_classes = self.encoder.transform(class_labels)
 
         return probabilities, encoded_classes
@@ -1085,7 +1110,7 @@ class EnsemblePredictor(CompositeTransform, Predictor):
         # Normalize along the last dimension
         if output.dims:
             last_dim = output.dims[-1]
-            denom = output.sum(dim=last_dim, keepdims=True)
+            denom = output.sum(dim=[last_dim], keepdims=True)
             denom_data = denom.data
 
             # Avoid divide-by-zero; zeros would imply all members predicted zero probability.

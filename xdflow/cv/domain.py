@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable, Hashable, Iterator, Mapping
+from typing import cast
 
 import numpy as np
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
+from xdflow.core.base import Predictor
 from xdflow.core.data_container import DataContainer
 from xdflow.cv.base import CrossValidator
 
@@ -150,7 +152,8 @@ class SampledDomainKFoldValidator(CrossValidator):
         return rng.choice(pool, size=n_samples, replace=False)
 
     def _samples_for_label(self, label: Hashable) -> int | None:
-        key = label.item() if hasattr(label, "item") else label
+        item = getattr(label, "item", None)
+        key = item() if callable(item) else label
         return self.label_sample_counts.get(key, self.default_samples_per_label)
 
     def _sample_target_train_indices(
@@ -205,7 +208,7 @@ class SampledDomainKFoldValidator(CrossValidator):
         self, container: DataContainer, indices_to_split: np.ndarray
     ) -> Iterator[tuple[np.ndarray, np.ndarray]]:
         if len(indices_to_split) == 0:
-            return iter([])
+            return
 
         cv_container = container.data.sel(trial=indices_to_split)
         _, source_mask, target_mask = self._resolve_domain_masks(DataContainer(cv_container))
@@ -309,8 +312,10 @@ class SampledDomainKFoldValidator(CrossValidator):
             holdout_probabilities = stateful_pipeline_fitted.predict_proba(test_container, verbose=verbose).data.values
 
         final_predictor = stateful_pipeline_fitted.predictive_transform
+        if final_predictor is None:
+            raise ValueError("Stateful pipeline must expose a predictive transform.")
         pred_labels = test_results_container.data.values
-        true_labels = self._extract_targets(final_predictor, test_results_container)
+        true_labels = self._extract_targets(cast("Predictor", final_predictor), test_results_container)
 
         pred_labels, true_labels, scoring_container, scoring_mask = self._filter_scoring_inputs(
             pred_labels,
@@ -320,6 +325,8 @@ class SampledDomainKFoldValidator(CrossValidator):
         )
         scoring_values = pred_labels
         if needs_proba:
+            if holdout_probabilities is None:
+                raise RuntimeError("Scoring requires probabilities, but none were produced.")
             scoring_values = holdout_probabilities if scoring_mask is None else holdout_probabilities[scoring_mask]
 
         self.holdout_container_ = scoring_container

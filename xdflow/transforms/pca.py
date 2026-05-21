@@ -137,6 +137,8 @@ class GlobalFeaturePCA(Transform):
         # Prepare covariance according to centering mode
         n_samples = X.shape[1]
         if self._center_mode == "true":
+            if self.feature_mean is None:
+                raise RuntimeError("feature_mean was not computed during fit.")
             Xc = X - self.feature_mean.values[:, None]
             cov = (Xc @ Xc.T) / (n_samples - 1)
         elif self._center_mode == "false_oldstyle":

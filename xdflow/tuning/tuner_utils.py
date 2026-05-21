@@ -24,7 +24,7 @@ import gc
 import random
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -188,7 +188,7 @@ def run_tuning_pipeline(
     cv_strategy: CrossValidator,
     param_grid: dict[str, dict[str, dict[str, Any]]],
     initial_data_container: DataContainer,
-    experiment_name: str = None,
+    experiment_name: str | None = None,
     mlflow_metadata: dict[str, Any] | None = None,
     n_seeds: int = 1,
     n_trials: int = 10,
@@ -255,6 +255,8 @@ def run_tuning_pipeline(
     holdout_assignment: list[Any] | None = None
     holdout_pointer = 0
     if holdout_ids is not None:
+        if n_holdouts is None:
+            raise ValueError("n_holdouts must be provided when holdout_ids is set.")
         holdout_pool = list(holdout_ids)
         if len(holdout_pool) < n_holdouts:
             raise ValueError(f"Requested n_holdouts={n_holdouts} but only {len(holdout_pool)} holdout_ids provided.")
@@ -274,33 +276,37 @@ def run_tuning_pipeline(
     def _assign_holdout_ids(validator: CrossValidator, holdout_ids: list[Any]) -> None:
         """Assign holdout IDs to the validator using common attribute names."""
         if hasattr(validator, "test_group_ids"):
-            validator.test_group_ids = holdout_ids
+            cast(Any, validator).test_group_ids = holdout_ids
         elif hasattr(validator, "test_session_ids"):
-            validator.test_session_ids = holdout_ids
+            cast(Any, validator).test_session_ids = holdout_ids
         elif hasattr(validator, "test_animal_ids"):
-            validator.test_animal_ids = holdout_ids
+            cast(Any, validator).test_animal_ids = holdout_ids
         else:
             raise AttributeError("Validator does not expose a test_* attribute to assign holdout IDs.")
 
-    def _resolve_class_labels(final_predictor: Any) -> np.ndarray:
+    def _resolve_class_labels(final_predictor: Any) -> list[Any]:
         """Resolve class labels from a predictor or its underlying estimator."""
         if final_predictor is None:
             raise ValueError("No predictive_transform found on the pipeline; cannot resolve class labels.")
         if getattr(final_predictor, "encoder", None) is not None:
-            return final_predictor.encoder.classes_
+            return list(final_predictor.encoder.classes_)
         estimator = getattr(final_predictor, "estimator", None)
         if estimator is None or not hasattr(estimator, "classes_"):
             raise ValueError(
                 "Class labels are unavailable. Provide an encoder on the final predictor or use an estimator "
                 "exposing classes_."
             )
-        return estimator.classes_
+        return list(estimator.classes_)
 
     for seed in range(n_seeds):
         print(f"Tuning with seed {seed}")
         cv_for_seed = copy.deepcopy(cv_strategy)
         validator = None
         if holdout_pool is not None:
+            if holdout_assignment is None:
+                raise RuntimeError("holdout_assignment was not initialized.")
+            if n_holdouts is None:
+                raise RuntimeError("n_holdouts was not initialized.")
             sampled_ids = holdout_assignment[holdout_pointer : holdout_pointer + n_holdouts]
             holdout_pointer += n_holdouts
             _assign_holdout_ids(cv_for_seed, sampled_ids)
@@ -394,6 +400,8 @@ def run_tuning_pipeline(
         test_trues.append(trues)
 
         if plot_each_seed_conf_matrix and is_classification and conf_matrix is not None:
+            if class_labels is None:
+                raise RuntimeError("Class labels were not resolved for classification plotting.")
             labels = class_labels
             source = "holdout" if score_on_holdout else "cv"
             plot_confusion_matrix(
@@ -422,8 +430,9 @@ def run_tuning_pipeline(
             print(f"\nAverage F1 score across {len(test_scores)} seed(s): {mean_score:.4f} ± {std_error_score:.4f}")
         else:
             # metric_name from last validator (all should be same)
+            metric_label = metric_name or "score"
             print(
-                f"\nAverage {metric_name.upper()} across {len(test_scores)} seed(s): {mean_score:.4f} ± {std_error_score:.4f}"
+                f"\nAverage {metric_label.upper()} across {len(test_scores)} seed(s): {mean_score:.4f} ± {std_error_score:.4f}"
             )
 
     # Only plot confusion matrix for classification tasks

@@ -83,7 +83,7 @@ class DemeanTransform(Transform):
             transformed_data = data - data.mean(dim=mean_dims)
         return DataContainer(transformed_data)
 
-    def get_expected_output_dims(self, input_dims: tuple[str]) -> tuple[str]:
+    def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
         return input_dims
 
 
@@ -172,5 +172,5 @@ class ZScoreTransform(Transform):
         transformed_data = (data - mean) / std
         return DataContainer(transformed_data)
 
-    def get_expected_output_dims(self, input_dims: tuple[str]) -> tuple[str]:
+    def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
         return input_dims

@@ -38,12 +38,12 @@ from xdflow.transforms.sklearn_transform import SKLearnPredictor, SKLearnTransfo
 from xdflow.transforms.spectral import MultiTaperTransform
 
 fs = container.attrs["sampling_frequency_hz"]
-freq_ranges = {
-    "delta": [2, 4],
-    "theta": [4, 8],
-    "alpha": [8, 12],
-    "beta": [12, 30],
-    "gamma": [30, 58],
+freq_ranges: dict[str, tuple[float, float]] = {
+    "delta": (2.0, 4.0),
+    "theta": (4.0, 8.0),
+    "alpha": (8.0, 12.0),
+    "beta": (12.0, 30.0),
+    "gamma": (30.0, 58.0),
 }
 
 pipeline = Pipeline(

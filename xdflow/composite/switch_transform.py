@@ -133,14 +133,22 @@ class SwitchTransform(CompositeTransform):
         if not self.is_predictor:
             raise ValueError("SwitchTransform is not a predictor.")
         selected_transform = self._get_selected_transform(**kwargs)
-        return self._rename_output_dim(selected_transform.predict(container, **kwargs))
+        if isinstance(selected_transform, CompositeTransform):
+            return self._rename_output_dim(selected_transform.predict(container, **kwargs))
+        if isinstance(selected_transform, Predictor):
+            return self._rename_output_dim(selected_transform.predict(container, **kwargs))
+        raise TypeError(f"Selected transform '{type(selected_transform).__name__}' is not a predictor.")
 
     def predict_proba(self, container: DataContainer, **kwargs) -> DataContainer:
         """Predicts the probabilities using the selected child transform."""
         if not self.is_predictor:
             raise ValueError("SwitchTransform is not a predictor.")
         selected_transform = self._get_selected_transform(**kwargs)
-        return self._rename_output_dim(selected_transform.predict_proba(container, **kwargs))
+        if isinstance(selected_transform, CompositeTransform):
+            return self._rename_output_dim(selected_transform.predict_proba(container, **kwargs))
+        if isinstance(selected_transform, Predictor):
+            return self._rename_output_dim(selected_transform.predict_proba(container, **kwargs))
+        raise TypeError(f"Selected transform '{type(selected_transform).__name__}' is not a predictor.")
 
     def fit(self, container: DataContainer, **kwargs) -> "SwitchTransform":
         """Fits the selected child transform."""

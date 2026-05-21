@@ -48,10 +48,10 @@ class MultiTaperTransform(Transform):
         avg_over_tapers: bool = True,
         avg_over_time_windows: bool = False,
         avg_over_freq_bands: bool = False,
-        freq_ranges: dict[str, tuple[float, float]] = None,
+        freq_ranges: dict[str, tuple[float, float]] | None = None,
         n_jobs: int = 1,
-        sel: dict[str, Any] = None,
-        drop_sel: dict[str, Any] = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
         **kwargs,
     ):
         """
@@ -184,6 +184,8 @@ class MultiTaperTransform(Transform):
 
         # Handle frequency band averaging
         if self.avg_over_freq_bands:
+            if self.freq_ranges is None:
+                raise ValueError("`freq_ranges` must be provided when `avg_over_freq_bands` is True.")
             freq_axis = current_dims.index("frequency")
             band_results = []
             for _band_name, (f_low, f_high) in self.freq_ranges.items():
@@ -257,6 +259,8 @@ class MultiTaperTransform(Transform):
 
         # Determine final shape and dimensions based on averaging
         if self.avg_over_freq_bands:
+            if self.freq_ranges is None:
+                raise ValueError("`freq_ranges` must be provided when `avg_over_freq_bands` is True.")
             # Filter bands that actually have frequency support
             band_names: list[str] = []
             for band_name, (f_low, f_high) in self.freq_ranges.items():
@@ -356,10 +360,10 @@ class BandpassFilterTransform(Transform):  # TODO: rename or combine with Bandpa
         lowcut: float,
         highcut: float,
         fs: int = 500,
-        sel: dict[str, Any] = None,
-        drop_sel: dict[str, Any] = None,
-        transform_sel: dict[str, Any] = None,
-        transform_drop_sel: dict[str, Any] = None,
+        sel: dict[str, Any] | None = None,
+        drop_sel: dict[str, Any] | None = None,
+        transform_sel: dict[str, Any] | None = None,
+        transform_drop_sel: dict[str, Any] | None = None,
     ):
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         self.fs = fs

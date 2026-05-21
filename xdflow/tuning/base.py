@@ -7,7 +7,7 @@ import copy
 # Import for setting global random seeds
 import random
 import time
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import optuna
@@ -67,7 +67,7 @@ class Tuner:
         cv_strategy: CrossValidator,
         param_grid: dict[str, dict[str, dict[str, Any]]],
         initial_data_container: DataContainer,
-        sampler: BaseSampler = None,
+        sampler: BaseSampler | None = None,
         pruner: optuna.pruners.BasePruner | None = None,
         direction: str = "maximize",
         verbose: int = 1,
@@ -163,7 +163,7 @@ class Tuner:
 
             # Inject seed into cross-validator
             if hasattr(self.cv_strategy, "random_state"):
-                self.cv_strategy.random_state = self.random_seed
+                cast(Any, self.cv_strategy).random_state = self.random_seed
 
     def _validate_param_grid(self):
         """
@@ -522,7 +522,7 @@ class Tuner:
                     processed_step_names=set(),
                 )
 
-    def _is_switch_transform_with_conditionals(self, transform: CompositeTransform, param_grid: dict[str, Any]) -> bool:
+    def _is_switch_transform_with_conditionals(self, transform: Any, param_grid: dict[str, Any]) -> bool:
         """
         Check if this is a SwitchTransform we should handle specially.
 
@@ -720,7 +720,7 @@ class Tuner:
         n_trials: int = 50,
         show_progress_bar: bool = False,
         run_name: str | None = None,
-    ) -> optuna.Trial:
+    ) -> tuple[dict[str, Any], float]:
         """
         Runs the hyperparameter tuning study.
 

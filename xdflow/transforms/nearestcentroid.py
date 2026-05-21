@@ -103,7 +103,9 @@ class NearestCentroidTransform(BaseEstimator, TransformerMixin):
             return np.zeros((X.shape[0], 0), dtype=X.dtype)
         return (X - self.mean_) @ self.scalings_
 
-    def fit_transform(self, X, y):
+    def fit_transform(self, X, y=None, **fit_params):
+        if y is None:
+            raise ValueError("NearestCentroidTransform.fit_transform requires y.")
         return self.fit(X, y).transform(X)
 
 
@@ -139,8 +141,8 @@ class NearestCentroid(SKLearnTransformer):
         n_components=None,
         use_priors=True,
         output_dim_name: str = "component",
-        sel: dict = None,
-        drop_sel: dict = None,
+        sel: dict | None = None,
+        drop_sel: dict | None = None,
         **kwargs,
     ):
         super().__init__(

@@ -35,6 +35,13 @@ class HilbertPhaseTransform(Transform):
 
     is_stateful: bool = False
     input_dims: tuple[str, ...] = ("trial", "channel", "time")
+    DEFAULT_FREQ_RANGES: dict[str, tuple[float, float]] = {
+        "theta": (4.0, 8.0),
+        "alpha": (8.0, 12.0),
+        "beta": (12.0, 30.0),
+        "low_gamma": (30.0, 55.0),
+        "high_gamma": (65.0, 100.0),
+    }
     # Output dims are dynamic based on configuration
 
     def __init__(
@@ -96,7 +103,7 @@ class HilbertPhaseTransform(Transform):
         self.n_jobs = n_jobs
 
         # Frequency bands to compute
-        freq_ranges = get_remove_freq_ranges(num_hf_bands_remove)
+        freq_ranges = get_remove_freq_ranges(num_hf_bands_remove, self.DEFAULT_FREQ_RANGES.copy())
         if num_lf_bands_remove > 0:
             freq_ranges = get_remove_freq_ranges(num_lf_bands_remove, freq_ranges, remove_high=False)
         if not freq_ranges:

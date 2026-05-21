@@ -14,7 +14,9 @@ from sklearn.model_selection import BaseCrossValidator
 from xdflow.core.data_container import DataContainer
 
 # Context variable to pass container through sklearn's fit
-_current_container = contextvars.ContextVar("current_container", default=None)
+_current_container: contextvars.ContextVar[DataContainer | None] = contextvars.ContextVar(
+    "current_container", default=None
+)
 
 
 class SklearnCVAdapter(BaseCrossValidator):

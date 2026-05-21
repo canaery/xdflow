@@ -7,6 +7,7 @@ import inspect
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterator
+from typing import cast
 
 import numpy as np
 from sklearn.metrics import (
@@ -207,16 +208,16 @@ class CrossValidator(ABC):
         # NOTE: `holdout_trial_labels_` stores trial labels in the stateless-preprocessed space.
         #       Trials are assumed to retain their original labels, so these map directly to the raw container.
         self.holdout_trial_labels_: np.ndarray | None = None
-        self.holdout_score_ = None
-        self.holdout_pred_labels_ = None  # Holdout test predictions
-        self.holdout_probabilities_ = None  # Holdout test probabilities/scores
-        self.holdout_true_labels_ = None  # Holdout test true labels
+        self.holdout_score_: float | None = None
+        self.holdout_pred_labels_: np.ndarray | None = None  # Holdout test predictions
+        self.holdout_probabilities_: np.ndarray | None = None  # Holdout test probabilities/scores
+        self.holdout_true_labels_: np.ndarray | None = None  # Holdout test true labels
         self.holdout_container_: DataContainer | None = None  # Holdout test container (for container-aware scorers)
         self.holdout_scoring_mask_: np.ndarray | None = None  # Mask used by container-aware scorer
 
         # Set by the user before evaluation (avoid property setter recursion)
-        self._pipeline = None
-        self.final_target_coord_ = None
+        self._pipeline: Pipeline | None = None
+        self.final_target_coord_: str | list[str] | None = None
         self.use_stateful_fit_cache = use_stateful_fit_cache
         self.release_fold_memory = release_fold_memory
         self.stratify_coord = stratify_coord
@@ -224,8 +225,8 @@ class CrossValidator(ABC):
         self.exclude_offsets_from_scoring = exclude_offsets_from_scoring
 
         # Resolved scoring function (set after pipeline is known)
-        self._scoring_func = None
-        self._metric_name = None
+        self._scoring_func: Callable | None = None
+        self._metric_name: str | None = None
         self._scoring_needs_proba = False
         self._scoring_accepts_container = False
 
@@ -372,6 +373,8 @@ class CrossValidator(ABC):
         """
         if self._scoring_func is not None:
             # Already resolved
+            if self._metric_name is None:
+                raise RuntimeError("Scoring function was resolved without a metric name.")
             return self._scoring_func, self._metric_name, self._scoring_needs_proba
 
         # Get the final predictor to determine task type
@@ -428,6 +431,8 @@ class CrossValidator(ABC):
             self._metric_name = "r2"
             self._scoring_needs_proba = False
 
+        if self._scoring_func is None or self._metric_name is None:
+            raise RuntimeError("Failed to resolve scoring function.")
         return self._scoring_func, self._metric_name, self._scoring_needs_proba
 
     def _extract_targets(self, predictor: Predictor, container: DataContainer) -> np.ndarray:
@@ -439,6 +444,8 @@ class CrossValidator(ABC):
             if predictor and hasattr(predictor, "target_coord_list") and predictor.target_coord_list
             else self.final_target_coord_
         )
+        if target_spec is None:
+            raise ValueError("Could not resolve target coordinates for scoring.")
         return extract_target_array(target_spec, container.data, validate=False)
 
     def _filter_scoring_inputs(
@@ -453,7 +460,7 @@ class CrossValidator(ABC):
         if not self.exclude_intertrial_from_scoring and not self.exclude_offsets_from_scoring:
             return pred_labels, true_labels, container, None
 
-        exclude_intertrial_mask = True
+        exclude_intertrial_mask = np.ones(pred_labels.shape[0], dtype=bool)
         if self.exclude_intertrial_from_scoring:
             if "event_type" not in container.data.coords:
                 warnings.warn(
@@ -470,7 +477,7 @@ class CrossValidator(ABC):
                     )
                 exclude_intertrial_mask = event_types != "intertrial"
 
-        exclude_offsets_mask = True
+        exclude_offsets_mask = np.ones(pred_labels.shape[0], dtype=bool)
         if self.exclude_offsets_from_scoring:
             if "time_offset_ms" not in container.data.coords:
                 warnings.warn(
@@ -500,10 +507,13 @@ class CrossValidator(ABC):
     # ------------------------------
     # Encoder discovery and injection
     # ------------------------------
-    def _iter_predictors(self, transform: Transform) -> Iterator[Predictor]:
+    def _iter_predictors(self, transform: Transform | None) -> Iterator[Predictor]:
         """Yield all Predictor instances within a transform recursively."""
         from xdflow.composite import CompositeTransform
         from xdflow.transforms import Transform as TransformType
+
+        if transform is None:
+            return
 
         if isinstance(transform, Predictor):
             yield transform
@@ -751,7 +761,9 @@ class CrossValidator(ABC):
         pred_labels = validation_results_container.data.values
 
         final_predictor = fold_pipeline.predictive_transform
-        true_labels = self._extract_targets(final_predictor, validation_results_container)
+        if final_predictor is None:
+            raise ValueError("Fold pipeline must expose a predictive transform.")
+        true_labels = self._extract_targets(cast(Predictor, final_predictor), validation_results_container)
 
         pred_labels, true_labels, scoring_container, scoring_mask = self._filter_scoring_inputs(
             pred_labels,
@@ -761,6 +773,8 @@ class CrossValidator(ABC):
         )
         scoring_values = pred_labels
         if needs_proba:
+            if validation_proba is None:
+                raise RuntimeError("Scoring requires probabilities, but none were produced.")
             scoring_values = validation_proba if scoring_mask is None else validation_proba[scoring_mask]
 
         # Calculate fold score using the selected scoring function
@@ -945,8 +959,10 @@ class CrossValidator(ABC):
             holdout_probabilities = stateful_pipeline_fitted.predict_proba(test_container, verbose=verbose).data.values
 
         final_predictor = stateful_pipeline_fitted.predictive_transform
+        if final_predictor is None:
+            raise ValueError("Stateful pipeline must expose a predictive transform.")
         pred_labels = test_results_container.data.values
-        true_labels = self._extract_targets(final_predictor, test_results_container)
+        true_labels = self._extract_targets(cast(Predictor, final_predictor), test_results_container)
 
         pred_labels, true_labels, scoring_container, scoring_mask = self._filter_scoring_inputs(
             pred_labels,
@@ -956,6 +972,8 @@ class CrossValidator(ABC):
         )
         scoring_values = pred_labels
         if needs_proba:
+            if holdout_probabilities is None:
+                raise RuntimeError("Scoring requires probabilities, but none were produced.")
             scoring_values = holdout_probabilities if scoring_mask is None else holdout_probabilities[scoring_mask]
 
         # Store the holdout container and filtered predictions for container-aware scorers
@@ -999,6 +1017,8 @@ class CrossValidator(ABC):
         """
         if self.holdout_container_ is None:
             raise ValueError("No holdout container available. Run score_on_holdout() first.")
+        if self.holdout_pred_labels_ is None:
+            raise ValueError("No holdout predictions available. Run score_on_holdout() first.")
 
         mask = mask_func(self.holdout_container_)
 
@@ -1044,6 +1064,8 @@ class CrossValidator(ABC):
 
         if self.holdout_pred_labels_ is None:
             raise ValueError("No holdout predictions available. Run score_on_holdout() first.")
+        if self.holdout_true_labels_ is None:
+            raise ValueError("No holdout labels available. Run score_on_holdout() first.")
 
         # Apply scoring mask if available
         if self.holdout_scoring_mask_ is not None:
@@ -1075,6 +1097,8 @@ class CrossValidator(ABC):
 
         if self.holdout_pred_labels_ is None:
             raise ValueError("No holdout predictions available. Run score_on_holdout() first.")
+        if self.holdout_true_labels_ is None:
+            raise ValueError("No holdout labels available. Run score_on_holdout() first.")
 
         # Apply scoring mask if available
         if self.holdout_scoring_mask_ is not None:
@@ -1388,7 +1412,10 @@ class CrossValidator(ABC):
             f1_score = self.oof_f1_score_
 
         # Use classes from the final predictor's encoder
-        classes = self.pipeline.predictive_transform.encoder.classes_
+        predictive_transform = self.pipeline.predictive_transform
+        if predictive_transform is None or predictive_transform.encoder is None:
+            raise ValueError("Pipeline predictor must have a fitted encoder before plotting confusion matrix.")
+        classes = predictive_transform.encoder.classes_
 
         if title_info:
             title_info = f"{title_info},"
