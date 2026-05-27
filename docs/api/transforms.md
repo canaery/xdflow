@@ -2,6 +2,8 @@
 
 Transforms are the reusable preprocessing, feature extraction, and model-adapter units that move `DataContainer` objects through a pipeline. Validators and tuners use transform metadata during execution: dimension declarations define valid handoffs between steps, and `is_stateful` controls which steps are refit inside each fold versus reused as fold-invariant work.
 
+For authoring guidance, examples, and test patterns, see [Writing Custom Transforms](../guides/writing-transforms.md).
+
 ## Basic Transforms
 
 ::: xdflow.transforms.basic_transforms.TransposeDimsTransform

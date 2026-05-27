@@ -66,6 +66,8 @@ nav:
       - Spectral Pipeline Walkthrough: tutorials/basic-pipeline.md
       - Reusable ML Patterns: tutorials/reusable-ml-patterns.md
   - Guides:
+      - Writing Custom Transforms: guides/writing-transforms.md
+      - Writing Custom Cross-Validators: guides/writing-cross-validators.md
       - Using XDFlow With LLMs: guides/llm.md
   - API Reference:
       - api/index.md

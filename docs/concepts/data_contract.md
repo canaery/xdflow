@@ -1,6 +1,10 @@
 # Data Contract
 
-`xdflow` works on `xarray.DataArray` objects wrapped by `DataContainer`. The library does not require a fixed schema beyond a few conventions, but it assumes your data is labeled consistently enough for transforms to use dimensions by name.
+`xdflow` works on `xarray.DataArray` objects. `DataContainer` is a thin framework wrapper around a `DataArray`, not a separate data model. The wrapped xarray object remains the source of truth for values, dimensions, coordinates, and attrs.
+
+The wrapper gives transforms, predictors, validators, and tuners a consistent object to pass around. It initializes `data.attrs["data_history"]`, rewraps xarray methods such as `sel` and `mean` when they return a new `DataArray`, and exposes the underlying array through `.data`.
+
+The library does not require a fixed schema beyond a few conventions, but it assumes your data is labeled consistently enough for transforms to use dimensions by name.
 
 The data contract is also what validators and tuners use at runtime. Dimensions and coordinates tell the framework what can be selected, split, transformed, scored, cached, and aligned without moving metadata into separate side arrays.
 
@@ -41,6 +45,27 @@ Domain-specific labels are fine as long as they remain internally consistent.
 - fold-invariant stateless steps can be reused across folds or tuning trials
 
 Do not mark a transform stateless just because it has no fitted Python object. If it computes cross-sample statistics or otherwise depends on the validation split, model it as stateful or keep it after the split boundary.
+
+## Transform history
+
+`DataContainer` initializes a `data_history` list in the wrapped array attrs. The base `Transform` appends each completed transform with its class name and public parameters, so transformed outputs carry a lightweight provenance trail.
+
+This history is useful for inspection and debugging. It is not a replacement for experiment tracking, model cards, or persisted pipeline configuration.
+
+## Automatic validation
+
+XDFlow uses transform dimension declarations as lightweight contract checks:
+
+- adjacent pipeline steps are checked at construction time when one step declares concrete `output_dims` and the next declares concrete `input_dims`
+- transforms with dynamic output shapes expose `get_expected_output_dims(input_dims)`
+- `Pipeline(expected_input_dims=...)` validates the expected input dims for every step and checks handoffs through `get_expected_output_dims`
+- during `fit_transform` and `transform`, `expected_input_dims` checks the actual dims before each step runs
+- `pipeline.get_expected_output_dims(input_dims, print_steps=True)` shows expected dimension flow without running data
+- `transform_sel` and `transform_drop_sel` write-back checks dims, sizes, and dimension coordinates before replacing a selected subset
+
+These checks catch many invalid reshapes and step handoffs early, but they are not a full semantic schema validator. Transform authors should still validate required coordinates, attrs, units, size constraints, and domain-specific assumptions inside the transform.
+
+See [Writing Custom Transforms](../guides/writing-transforms.md) for the authoring workflow and examples.
 
 ## Coordinates and attrs
 
@@ -93,3 +118,5 @@ Bad pattern:
 3. Preserve or intentionally recompute coordinates when reshaping data.
 4. Keep transform logic label-aware.
 5. Add focused unit tests, including immutability coverage where applicable.
+
+For examples and test patterns, see [Writing Custom Transforms](../guides/writing-transforms.md).

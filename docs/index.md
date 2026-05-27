@@ -20,7 +20,7 @@ These patterns show up in neural recordings, biosignals, sensor arrays, medical 
 
 The library is built around a small set of abstractions:
 
-- `DataContainer` wraps an `xarray.DataArray` and keeps dimensions, coordinates, attrs, and data history together
+- `DataContainer` carries labeled xarray data through pipeline APIs
 - `Transform` defines immutable preprocessing steps with explicit dimension and state contracts
 - `Pipeline` composes transforms and predictors into reusable workflows
 - `CrossValidator` runs structure-aware evaluation while separating fold-invariant stateless work from stateful or split-dependent steps
@@ -44,5 +44,7 @@ The library is built around a small set of abstractions:
 4. Use [Hyperparameter Tuning](tutorials/tuning.md) to search over pipeline parameters and architecture choices.
 5. Follow the [Spectral Pipeline Walkthrough](tutorials/basic-pipeline.md) for an end-to-end signal-processing example.
 6. Read [Reusable ML Patterns](tutorials/reusable-ml-patterns.md) for multilabel, weighting, and domain-transfer examples.
-7. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
-8. Use the [API Reference](api/index.md) for class and function details.
+7. Use [Writing Custom Transforms](guides/writing-transforms.md) when adding reusable preprocessing or feature extraction.
+8. Use [Writing Custom Cross-Validators](guides/writing-cross-validators.md) only when built-in split policies do not fit.
+9. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
+10. Use the [API Reference](api/index.md) for class and function details.

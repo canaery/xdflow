@@ -11,6 +11,8 @@ XDFlow tuning uses the same objects as the rest of the framework:
 
 The point is to avoid rewriting experiment loops. The tuner asks Optuna for a candidate configuration, applies it to a cloned pipeline, evaluates it through the validator, and records the score. Cross-validation still owns splitting, refitting, scoring, and prediction alignment.
 
+For custom evaluation policies, prefer configuring the built-in validators first. If the split policy itself is new, see [Writing Custom Cross-Validators](../guides/writing-cross-validators.md).
+
 ## Install model
 
 Use the tuning extra when you want to run optimization:

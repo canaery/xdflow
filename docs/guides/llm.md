@@ -8,7 +8,7 @@ AGENTS.md
 
 For Codex-style coding agents, this file is read automatically when the agent works in the repository. For other LLM tools, attach `AGENTS.md` or point the tool at it before asking for code changes.
 
-That file is the canonical instruction source for XDFlow-specific implementation rules: how to write transforms, how to honor the xarray data contract, how cloning works, when to use sklearn wrappers, and when to use XDFlow validators instead of manual split loops.
+That file is the canonical instruction source for XDFlow-specific implementation rules: how to write transforms, how to honor the xarray data contract, how cloning works, when to use sklearn wrappers, and when to use XDFlow validators instead of manual split loops. For human-readable extension guides, see [Writing Custom Transforms](writing-transforms.md) and [Writing Custom Cross-Validators](writing-cross-validators.md).
 
 ## Why This Helps
 
@@ -42,7 +42,7 @@ Avoid asking the LLM to manually manage train/test splits, reshape arrays across
 
 ## Transform Skeleton For Agents
 
-When a custom preprocessing operation is needed, the agent should target this shape:
+When a custom preprocessing operation is needed, the agent should target this shape. The full authoring guide, including dimension validation and tests, is [Writing Custom Transforms](writing-transforms.md).
 
 ```python
 from typing import Any

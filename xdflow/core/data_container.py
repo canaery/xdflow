@@ -15,12 +15,17 @@ class TransformError(Exception):
 
 
 class DataContainer:
-    """Wrap an `xarray.DataArray` as the standard XDFlow data object.
+    """Thin framework wrapper around an `xarray.DataArray`.
 
-    `DataContainer` is the object passed between transforms, predictors, and
-    cross-validation utilities. It keeps labeled array data as the source of
-    truth, preserves xarray dimensions and coordinates, and initializes the
-    `data_history` attribute used to track pipeline operations.
+    XDFlow's data model is xarray. `DataContainer` is not a parallel array
+    abstraction; it is the object passed between transforms, predictors, and
+    cross-validation utilities so the framework has a consistent boundary. The
+    wrapped `xarray.DataArray` remains the source of truth for values,
+    dimensions, coordinates, and attrs.
+
+    The wrapper initializes the `data_history` attribute used to track pipeline
+    operations and rewraps common xarray operations so chained calls stay inside
+    the XDFlow transform contract.
 
     Most xarray methods can be called directly on the container. Methods that
     return a new `xarray.DataArray` are rewrapped as a new `DataContainer`, so

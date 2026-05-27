@@ -55,6 +55,7 @@ The GitHub Actions docs job also runs `mkdocs build --strict`, so docs failures 
 When adding a new transform or workflow:
 
 1. Update the relevant concept or tutorial page if the user-facing behavior changes.
-2. Add or expand API documentation if the module belongs to the core dependency set.
-3. Keep examples based on `xarray.DataArray` and make dimensions, coordinates, targets, groups, and split policies explicit.
-4. Add tests alongside the feature when behavior or contracts change.
+2. Link to or update [Writing Custom Transforms](guides/writing-transforms.md) or [Writing Custom Cross-Validators](guides/writing-cross-validators.md) when extension behavior changes.
+3. Add or expand API documentation if the module belongs to the core dependency set.
+4. Keep examples based on `xarray.DataArray` and make dimensions, coordinates, targets, groups, and split policies explicit.
+5. Add tests alongside the feature when behavior or contracts change.

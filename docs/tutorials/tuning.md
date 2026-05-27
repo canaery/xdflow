@@ -45,6 +45,8 @@ The classifier reads targets from the `stimulus` coordinate. There is no separat
 ## 2. Choose The Evaluation Policy
 
 The validator defines how each trial is scored. This is the same object you would use without tuning.
+Use a built-in validator when possible; custom split policies are covered in
+[Writing Custom Cross-Validators](../guides/writing-cross-validators.md).
 
 ```python
 from xdflow.cv import KFoldValidator

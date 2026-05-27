@@ -133,5 +133,6 @@ For classification pipelines, the final dimension is usually `prediction`.
 ## 5. Next steps
 
 - Use [Data Contract](../concepts/data_contract.md) when adapting your own data.
+- Use [Writing Custom Transforms](../guides/writing-transforms.md) when a preprocessing operation should become a reusable pipeline step.
 - Explore grouped workflows with `GroupApplyTransform` if models or preprocessors should be fit per subject or session.
 - Use the [API Reference](../api/index.md) to inspect transform signatures and available CV strategies.

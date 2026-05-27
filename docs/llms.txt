@@ -12,6 +12,8 @@ Important docs for LLMs and coding agents:
 - Hyperparameter tuning: /tutorials/tuning/
 - Spectral pipeline walkthrough: /tutorials/basic-pipeline/
 - Reusable ML patterns: /tutorials/reusable-ml-patterns/
+- Writing custom transforms: /guides/writing-transforms/
+- Writing custom cross-validators: /guides/writing-cross-validators/
 - Using XDFlow with LLMs: /guides/llm/
 - Core API: /api/core/
 - Composition API: /api/composition/

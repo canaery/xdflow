@@ -157,3 +157,5 @@ Use `UnionWithInput` when a transformed branch should be concatenated with the o
 Use `GroupApplyTransform` when fitting or transforming must happen independently per metadata-defined group.
 
 These tools stay modular because they all preserve the same transform contract: `DataContainer` in, `DataContainer` out.
+
+For the custom transform side of that contract, see [Writing Custom Transforms](../guides/writing-transforms.md).

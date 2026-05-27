@@ -4,6 +4,8 @@ XDFlow validators run the evaluation loop. They build folds, apply split policie
 
 Use these classes instead of handwritten sklearn split loops when validation depends on metadata, pipeline state, or reusable preprocessing.
 
+For custom split policies, see [Writing Custom Cross-Validators](../guides/writing-cross-validators.md).
+
 ## Base Validator
 
 ::: xdflow.cv.base.CrossValidator

@@ -126,8 +126,7 @@ print(f"Weighted F1: {score:.3f}")
 - **Hyperparameter tuning**: Optuna-based search across pipeline architectures, reusable static-prefix caching across tuning trials, optional MLflow logging, and explicit seed management.
 - **Pluggable estimators**: any class implementing the sklearn API, including sklearn itself, LightGBM, XGBoost, or your own, drops into the pipeline via `SKLearnTransformer` and `SKLearnPredictor`.
 - **Multi-output support**: a unified interface for multi-target regression, multilabel classification, and sample-weighted training with sklearn-compatible estimators.
-- **Explicit API contracts**: focused transform and pipeline interfaces keep custom code small enough to write, test, review, and generate with LLM coding tools.
-
+- **Explicit API contracts**: focused transform, predictor, and validation interfaces keep custom code small enough to write, test, review, and generate with LLM coding tools.
 ---
 
 ## Relation to sklearn and pipeline frameworks
@@ -140,6 +139,10 @@ print(f"Weighted F1: {score:.3f}")
 
 **[Full Documentation](https://xdflow.readthedocs.io/en/latest/)**
 
+XDFlow is designed for custom transforms, predictors, and validation policies. See
+[Writing Custom Transforms](docs/guides/writing-transforms.md) and
+[Writing Custom Cross-Validators](docs/guides/writing-cross-validators.md) for examples.
+
 **Quick Links**:
 
 - [Data Contract](docs/concepts/data_contract.md)
@@ -147,6 +150,8 @@ print(f"Weighted F1: {score:.3f}")
 - [5-Minute Core Quickstart](docs/tutorials/quickstart.md)
 - [Core Concepts](docs/concepts/index.md)
 - [Tutorials](docs/tutorials/index.md)
+- [Writing Custom Transforms](docs/guides/writing-transforms.md)
+- [Writing Custom Cross-Validators](docs/guides/writing-cross-validators.md)
 - [Using XDFlow With LLMs](docs/guides/llm.md)
 - [API Reference](docs/api/index.md)
 

@@ -114,6 +114,7 @@ The prediction container still carries the sample dimension, so predictions can 
 ## Next Steps
 
 - Read [Data Contract](../concepts/data_contract.md) before adapting your own arrays.
+- Use [Writing Custom Transforms](../guides/writing-transforms.md) when your preprocessing should become a reusable pipeline step.
 - Use [Hyperparameter Tuning](tuning.md) to search over the same kind of pipeline with Optuna.
 - Use [Spectral Pipeline Walkthrough](basic-pipeline.md) for a richer signal-processing example.
 - Use [Reusable ML Patterns](reusable-ml-patterns.md) for multilabel, sample-weighting, and domain-transfer workflows.

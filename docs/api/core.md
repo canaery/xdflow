@@ -2,6 +2,8 @@
 
 Core APIs define the data container and transform contracts used throughout XDFlow.
 
+For extension-oriented examples, see [Writing Custom Transforms](../guides/writing-transforms.md) and [Writing Custom Cross-Validators](../guides/writing-cross-validators.md).
+
 ## Top-Level Exports
 
 The root package exposes the main workflow primitives:

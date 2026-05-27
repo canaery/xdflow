@@ -29,6 +29,8 @@ Important conventions enforced throughout the library:
 - learned state belongs on fitted attributes, not in constructor arguments
 - new dimensions should receive descriptive names and coordinates where possible
 
+See [Writing Custom Transforms](../guides/writing-transforms.md) for concrete authoring patterns, dimension checks, and test examples.
+
 ## Fold-invariant vs stateful steps
 
 Cross-validation uses the `is_stateful` flag to decide where the fold boundary belongs:
