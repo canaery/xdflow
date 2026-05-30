@@ -40,6 +40,8 @@ Cross-validation uses the `is_stateful` flag to decide where the fold boundary b
 
 This matters for expensive preprocessing such as spectral feature extraction, where fold-invariant work should not be recomputed for every fold. A transform should only be marked stateless for CV reuse when it does not learn from held-out samples or depend on the split boundary.
 
+See [Execution Model](execution.md) for the cross-validation boundary, tuning cache boundary, and current in-memory data scope.
+
 ## Composition patterns
 
 The main composition tools are:

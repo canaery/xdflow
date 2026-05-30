@@ -57,6 +57,7 @@ nav:
   - Concepts:
       - concepts/index.md
       - Data Contract: concepts/data_contract.md
+      - Execution Model: concepts/execution.md
       - Composing Pipelines: concepts/composition.md
       - Tuning: concepts/tuning.md
   - Tutorials:

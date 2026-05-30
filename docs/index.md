@@ -18,6 +18,17 @@ Use `xdflow` when your pipeline should understand the structure of the data:
 
 These patterns show up in neural recordings, biosignals, sensor arrays, medical time series, geophysical data, and other labeled datasets where the metadata is part of the experiment.
 
+## Where it fits
+
+`xdflow` builds on the scientific Python tools that already work well:
+
+- `xarray` is the labeled data representation
+- scikit-learn-style estimators remain the model interface when they fit the task
+- Optuna handles hyperparameter and architecture search
+- MLflow can record experiment runs
+
+XDFlow is the layer around those tools that keeps dimensions, coordinates, transform state, validation, tuning, caching, and predictions in one pipeline contract. It is closest in spirit to `sklearn.Pipeline`, but it is designed for data whose axes and coordinates carry experimental meaning.
+
 The library is built around a small set of abstractions:
 
 - `DataContainer` carries labeled xarray data through pipeline APIs
@@ -25,6 +36,10 @@ The library is built around a small set of abstractions:
 - `Pipeline` composes transforms and predictors into reusable workflows
 - `CrossValidator` runs structure-aware evaluation while separating fold-invariant stateless work from stateful or split-dependent steps
 - `Tuner` searches over pipeline parameters and architecture choices through the same validator and data contract
+
+## Current scope
+
+XDFlow currently operates on in-memory `xarray.DataArray` inputs. Out-of-core and Dask-backed execution are future-facing areas rather than part of the current core runtime.
 
 ## Package layout
 
@@ -41,10 +56,11 @@ The library is built around a small set of abstractions:
 1. Read [Installation](installation.md) to set up the package and optional extras.
 2. Read [Concepts](concepts/index.md) for the runtime model and transform rules.
 3. Run the [5-Minute Core Quickstart](tutorials/quickstart.md) for a base-install example.
-4. Use [Hyperparameter Tuning](tutorials/tuning.md) to search over pipeline parameters and architecture choices.
-5. Follow the [Spectral Pipeline Walkthrough](tutorials/basic-pipeline.md) for an end-to-end signal-processing example.
-6. Read [Reusable ML Patterns](tutorials/reusable-ml-patterns.md) for multilabel, weighting, and domain-transfer examples.
-7. Use [Writing Custom Transforms](guides/writing-transforms.md) when adding reusable preprocessing or feature extraction.
-8. Use [Writing Custom Cross-Validators](guides/writing-cross-validators.md) only when built-in split policies do not fit.
-9. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
-10. Use the [API Reference](api/index.md) for class and function details.
+4. Read [Execution Model](concepts/execution.md) for the split, refit, and caching rules.
+5. Use [Hyperparameter Tuning](tutorials/tuning.md) to search over pipeline parameters and architecture choices.
+6. Follow the [Spectral Pipeline Walkthrough](tutorials/basic-pipeline.md) for an end-to-end signal-processing example.
+7. Read [Reusable ML Patterns](tutorials/reusable-ml-patterns.md) for multilabel, weighting, and domain-transfer examples.
+8. Use [Writing Custom Transforms](guides/writing-transforms.md) when adding reusable preprocessing or feature extraction.
+9. Use [Writing Custom Cross-Validators](guides/writing-cross-validators.md) only when built-in split policies do not fit.
+10. Use [XDFlow With LLMs](guides/llm.md) when asking an LLM to implement against the framework.
+11. Use the [API Reference](api/index.md) for class and function details.

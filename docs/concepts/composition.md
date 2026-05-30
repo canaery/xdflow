@@ -112,13 +112,17 @@ augmented = UnionWithInput(
 from xdflow.composite import GroupApplyTransform
 from xdflow.transforms.normalization import ZScoreTransform
 
-per_session_zscore = GroupApplyTransform(
-    group_coord="session",
+subject_norm = GroupApplyTransform(
+    group_coord="subject",
     transform_template=ZScoreTransform(by_dim="channel", use_fit=True),
 )
 ```
 
-Use this when the correct fitted state is group-specific: per-animal normalization, per-session preprocessing, or separate models per condition. The group coordinate must index exactly one dimension, and the inner transform must preserve the grouped axis so outputs can be reassembled.
+Use this when the correct fitted state is group-specific: per-subject normalization, per-session preprocessing, separate device calibration, or separate models per condition. The grouping variable stays in the data as a coordinate, so the pipeline does not need a side vector passed through split and transformation code.
+
+`GroupApplyTransform` is also useful with stateless templates when the operation should be constrained to one group at a time. If the template is stateful, each group gets its own fitted clone; if the template is stateless, each group is transformed independently and then reassembled.
+
+The group coordinate must index exactly one dimension, and the inner transform must preserve the grouped axis so outputs can be reassembled.
 
 For multiple coordinates, pass a list. XDFlow combines those coordinate values into a group key:
 

@@ -118,6 +118,8 @@ During cross-validation:
 - stateful steps such as PCA and logistic regression are cloned and refit per fold
 - predictors read targets from coordinates instead of a separate `y`
 
+See [Execution Model](../concepts/execution.md) for the exact split and caching rules behind this behavior.
+
 ## 4. Predict on new data
 
 Once fit, the same pipeline can be used directly:

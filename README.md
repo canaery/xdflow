@@ -133,6 +133,8 @@ print(f"Weighted F1: {score:.3f}")
 
 `xdflow` does not replace sklearn. It wraps sklearn estimators when they fit, and keeps named dimensions and coordinates intact around them. It also does not replace pipeline orchestrators like Kedro or ZenML; an `xdflow` pipeline can live inside one of their nodes. The layer it fills is between: opinionated transform and CV semantics for data whose axes mean something.
 
+Current scope: XDFlow operates on in-memory `xarray.DataArray` inputs wrapped by `DataContainer`. Out-of-core and Dask-backed execution are future-facing areas rather than part of the current core runtime.
+
 ---
 
 ## Documentation
@@ -215,3 +217,5 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **Lead maintainer**: [Julien Bloch](https://github.com/julien-bloch)
 - **GitHub Issues**: [Report bugs or request features](https://github.com/canaery/xdflow/issues)
 - **Discussions**: [Ask questions, share ideas](https://github.com/canaery/xdflow/discussions)
+
+The repository is hosted under `canaery/xdflow` for continuity with the project's original organization name.
