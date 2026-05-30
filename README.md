@@ -129,14 +129,6 @@ print(f"Weighted F1: {score:.3f}")
 - **Explicit API contracts**: focused transform, predictor, and validation interfaces keep custom code small enough to write, test, review, and generate with LLM coding tools.
 ---
 
-## Relation to sklearn and pipeline frameworks
-
-`xdflow` does not replace sklearn. It wraps sklearn estimators when they fit, and keeps named dimensions and coordinates intact around them. It also does not replace pipeline orchestrators like Kedro or ZenML; an `xdflow` pipeline can live inside one of their nodes. The layer it fills is between: opinionated transform and CV semantics for data whose axes mean something.
-
-Current scope: XDFlow operates on in-memory `xarray.DataArray` inputs wrapped by `DataContainer`. Out-of-core and Dask-backed execution are future-facing areas rather than part of the current core runtime.
-
----
-
 ## Documentation
 
 **[Full Documentation](https://xdflow.readthedocs.io/en/latest/)**

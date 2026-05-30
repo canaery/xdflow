@@ -60,9 +60,7 @@ class CARTransform(Transform):
             mean_all = data.sel(channel=lfp_channels).mean(dim="channel")
             data.loc[{"channel": lfp_channels}] -= mean_all
         else:
-            raise ValueError(
-                f"CAR method '{self.car_method}' not recognized. Must be one of 'all' or 'none'."
-            )
+            raise ValueError(f"CAR method '{self.car_method}' not recognized. Must be one of 'all' or 'none'.")
 
         return DataContainer(data)
 
