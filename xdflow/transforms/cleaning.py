@@ -154,13 +154,11 @@ class CARTransform(Transform):
     """
     Apply Common Average Referencing (CAR) to the data.
 
-    It can be applied to the entire set of channels ('all') or
-    in predefined banks ('by_32').
+    CAR can be applied to all signal channels or disabled.
 
     Args:
-        car_method: 'by_32', 'all', or 'none'.
+        car_method: 'all' or 'none'.
         excluded_channels: Channels to leave untouched (e.g., reference sensors).
-        expected_signal_channels: Validate the number of channels subject to CAR.
     """
 
     is_stateful: bool = False
@@ -169,9 +167,8 @@ class CARTransform(Transform):
 
     def __init__(
         self,
-        car_method: str = "by_32",
+        car_method: str = "all",
         excluded_channels: Sequence[str] | None = None,
-        expected_signal_channels: int | None = 127,
         sel: dict[str, object] | None = None,
         drop_sel: dict[str, object] | None = None,
     ):
@@ -179,7 +176,6 @@ class CARTransform(Transform):
         self.car_method = car_method
         self.excluded_channels = excluded_channels  # for clone
         self._excluded_channels = tuple(excluded_channels or ())
-        self.expected_signal_channels = expected_signal_channels
 
     def _transform(self, data_container: DataContainer, **kwargs) -> DataContainer:
         """
@@ -195,42 +191,12 @@ class CARTransform(Transform):
         if self.car_method is None or self.car_method == "none":
             return DataContainer(data)
 
-        elif self.car_method == "by_32":
-            if self.expected_signal_channels is not None and len(lfp_channels) != self.expected_signal_channels:
-                raise ValueError(
-                    f"CAR method 'by_32' expected {self.expected_signal_channels} channels "
-                    f"but found {len(lfp_channels)}. Set expected_signal_channels=None to disable this check."
-                )
-
-            # Define bank groupings and create a new coordinate
-            bank_labels = np.full(data.sizes["channel"], "other", dtype=object)
-            bank_map = {
-                "bank0": slice(0, 32),
-                "bank1": slice(32, 64),
-                "bank2": slice(64, 95),
-                "bank3": slice(95, 127),
-            }
-            for bank_name, ch_slice in bank_map.items():
-                bank_labels[np.isin(channel_values, lfp_channels[ch_slice])] = bank_name
-
-            data = data.assign_coords(car_bank=("channel", bank_labels))
-
-            # Group by the new coordinate, calculate mean, and subtract
-            lfp_data = data.sel(channel=lfp_channels)
-            grouped = lfp_data.groupby("car_bank")
-            mean_per_bank = grouped.mean(dim="channel")
-            transformed_lfp = grouped - mean_per_bank
-
-            # Update the original data array
-            data.loc[{"channel": lfp_channels}] = transformed_lfp
-            data = data.drop_vars("car_bank")
-
         elif self.car_method == "all":
             mean_all = data.sel(channel=lfp_channels).mean(dim="channel")
             data.loc[{"channel": lfp_channels}] -= mean_all
         else:
             raise ValueError(
-                f"CAR method '{self.car_method}' not recognized. Must be one of 'by_32', 'all', or 'none'."
+                f"CAR method '{self.car_method}' not recognized. Must be one of 'all' or 'none'."
             )
 
         return DataContainer(data)
