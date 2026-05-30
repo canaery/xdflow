@@ -30,8 +30,6 @@ For authoring guidance, examples, and test patterns, see [Writing Custom Transfo
 
 ## Cleaning And Normalization
 
-::: xdflow.transforms.cleaning.RemoveMissingBanksTransform
-
 ::: xdflow.transforms.cleaning.CARTransform
 
 ::: xdflow.transforms.cleaning.RegressOutReferenceTransform
