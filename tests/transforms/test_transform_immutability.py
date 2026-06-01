@@ -118,7 +118,7 @@ def test_group_apply_transform_immutability(data_container_factory, assert_trans
     container = data_container_factory(n_trials=10, n_channels=5, n_time=10)
     container.data.coords["stimulus"] = ("trial", np.tile(["a", "b"], 5))
     transform = GroupApplyTransform(
-        group_coord="stimulus", transform_template=DemeanTransform(by_dim="time", use_fit=True)
+        group_coord="stimulus", transform_template=DemeanTransform(per_dim="time", use_fit=True)
     )
     assert_transform_immutability(transform, container)
 
@@ -126,7 +126,7 @@ def test_group_apply_transform_immutability(data_container_factory, assert_trans
 def test_optional_transform_immutability(data_container_factory, assert_transform_immutability):
     """Test OptionalTransform immutability."""
     container = data_container_factory(n_trials=10, n_channels=5, n_time=10)
-    transform = OptionalTransform(transform_template=DemeanTransform(by_dim="time"), use=True)
+    transform = OptionalTransform(transform_template=DemeanTransform(per_dim="time"), use=True)
     assert_transform_immutability(transform, container)
 
 
@@ -177,14 +177,14 @@ def test_transform_union_immutability(data_container_factory, assert_transform_i
 def test_demean_transform_immutability(data_container_factory, assert_transform_immutability):
     """Test DemeanTransform immutability."""
     container = data_container_factory(n_trials=5, n_channels=10, n_time=100)
-    transform = DemeanTransform(by_dim="channel")
+    transform = DemeanTransform(per_dim="channel")
     assert_transform_immutability(transform, container)
 
 
 def test_zscore_transform_immutability(data_container_factory, assert_transform_immutability):
     """Test ZScoreTransform immutability."""
     container = data_container_factory(n_trials=5, n_channels=10, n_time=100)
-    transform = ZScoreTransform(by_dim="channel")
+    transform = ZScoreTransform(per_dim="channel")
     assert_transform_immutability(transform, container)
 
 

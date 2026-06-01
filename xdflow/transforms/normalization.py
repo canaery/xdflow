@@ -6,13 +6,19 @@ from xdflow.core.data_container import DataContainer
 from xdflow.utils.sampling import get_container_by_conditions
 
 
-class DemeanTransform(Transform):
-    """Subtract a mean while preserving selected grouping dimensions.
+def _normalize_per_dim(per_dim: str | list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    return (per_dim,) if isinstance(per_dim, str) else tuple(per_dim)
 
-    `by_dim` names the dimensions whose labels should remain distinct while the
-    mean is computed over all other dimensions. For data with dimensions
-    `("trial", "channel", "time")`, `by_dim="channel"` subtracts a separate
-    channel mean computed across trials and time.
+
+class DemeanTransform(Transform):
+    """Subtract a mean independently per selected dimension label.
+
+    `per_dim` names the dimensions whose labels remain distinct while the mean
+    is computed over all other dimensions. For data with dimensions `("trial",
+    "channel", "time")`, `per_dim="channel"` subtracts a separate channel mean
+    computed across trials and time. Unlike xarray's `dim=`, `per_dim` does
+    not name dimensions to reduce. When multiple dimensions are provided,
+    statistics are computed separately for each coordinate tuple across those dimensions.
 
     By default the mean is computed from the data being transformed. With
     `use_fit=True`, the mean is learned during `fit` and reused during
@@ -25,7 +31,7 @@ class DemeanTransform(Transform):
 
     def __init__(
         self,
-        by_dim: str | list[str] | tuple[str, ...],
+        per_dim: str | list[str] | tuple[str, ...],
         use_fit: bool = False,
         fit_sel: dict[str, Any] | None = None,
         sel: dict[str, Any] | None = None,
@@ -37,7 +43,7 @@ class DemeanTransform(Transform):
         Initializes the DemeanTransform.
 
         Args:
-            by_dim: The dimension or dimensions along which to compute the mean.
+            per_dim: Dimension or dimensions to keep distinct while computing the mean.
             use_fit: Whether to use the fit data to compute the mean.
             fit_sel: A dictionary to select a subset of data for fitting.
                 Useful if you want to demean in reference to a subset of the data.
@@ -49,7 +55,7 @@ class DemeanTransform(Transform):
         """
 
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
-        self.by_dim = by_dim if isinstance(by_dim, (list, tuple)) else (by_dim,)
+        self.per_dim = per_dim
         self.use_fit = use_fit
         self.is_stateful = self.use_fit
         self.fit_sel = fit_sel
@@ -66,7 +72,8 @@ class DemeanTransform(Transform):
             if self.fit_sel is not None:
                 data_container = get_container_by_conditions(data_container, self.fit_sel)
 
-            mean_dims = [d for d in data_container.data.dims if d not in self.by_dim]
+            per_dims = _normalize_per_dim(self.per_dim)
+            mean_dims = [d for d in data_container.data.dims if d not in per_dims]
             self.mean = data_container.data.mean(dim=mean_dims)
         return self
 
@@ -84,7 +91,8 @@ class DemeanTransform(Transform):
         if self.use_fit:
             transformed_data = data - self.mean
         else:
-            mean_dims = [d for d in data.dims if d not in self.by_dim]
+            per_dims = _normalize_per_dim(self.per_dim)
+            mean_dims = [d for d in data.dims if d not in per_dims]
             transformed_data = data - data.mean(dim=mean_dims)
         return DataContainer(transformed_data)
 
@@ -93,12 +101,15 @@ class DemeanTransform(Transform):
 
 
 class ZScoreTransform(Transform):
-    """Apply z-score normalization while preserving grouping dimensions.
+    """Apply z-score normalization independently per selected dimension label.
 
-    `by_dim` names the dimensions whose labels should remain distinct while the
-    mean and standard deviation are computed over all other dimensions. For data
-    with dimensions `("trial", "channel", "time")`, `by_dim="channel"`
+    `per_dim` names the dimensions whose labels remain distinct while the mean
+    and standard deviation are computed over all other dimensions. For data with
+    dimensions `("trial", "channel", "time")`, `per_dim="channel"`
     normalizes each channel using statistics computed across trials and time.
+    Unlike xarray's `dim=`, `per_dim` does not name dimensions to reduce. When
+    multiple dimensions are provided, statistics are computed separately for
+    each coordinate tuple across those dimensions.
 
     By default statistics are computed from the data being transformed. With
     `use_fit=True`, statistics are learned during `fit` and reused during
@@ -111,7 +122,7 @@ class ZScoreTransform(Transform):
 
     def __init__(
         self,
-        by_dim: str | list[str] | tuple[str, ...],
+        per_dim: str | list[str] | tuple[str, ...],
         use_fit: bool = False,
         fit_sel: dict[str, Any] | None = None,
         sel: dict[str, Any] | None = None,
@@ -122,7 +133,7 @@ class ZScoreTransform(Transform):
         """Initialize a z-score transform.
 
         Args:
-            by_dim: The dimension or dimensions along which to compute the mean and std.
+            per_dim: Dimension or dimensions to keep distinct while computing the mean and std.
             use_fit: Whether to use the fit data to compute the mean and std.
             fit_sel: A dictionary to select a subset of data for fitting.
                 Useful if you want to zscore in reference to a subset of the data.
@@ -134,7 +145,7 @@ class ZScoreTransform(Transform):
         """
 
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
-        self.by_dim = by_dim if isinstance(by_dim, (list, tuple)) else (by_dim,)
+        self.per_dim = per_dim
         self.use_fit = use_fit
         self.is_stateful = self.use_fit
         self.fit_sel = fit_sel
@@ -151,7 +162,8 @@ class ZScoreTransform(Transform):
             if self.fit_sel is not None:
                 data_container = get_container_by_conditions(data_container, self.fit_sel)
 
-            mean_dims = [d for d in data_container.data.dims if d not in self.by_dim]
+            per_dims = _normalize_per_dim(self.per_dim)
+            mean_dims = [d for d in data_container.data.dims if d not in per_dims]
             self.mean = data_container.data.mean(dim=mean_dims)
             self.std = data_container.data.std(dim=mean_dims)
         return self
@@ -171,7 +183,8 @@ class ZScoreTransform(Transform):
             mean = self.mean
             std = self.std
         else:
-            mean_dims = [d for d in data.dims if d not in self.by_dim]
+            per_dims = _normalize_per_dim(self.per_dim)
+            mean_dims = [d for d in data.dims if d not in per_dims]
             mean = data.mean(dim=mean_dims)
             std = data.std(dim=mean_dims)
         transformed_data = (data - mean) / std

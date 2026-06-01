@@ -55,7 +55,7 @@ from xdflow.composite import OptionalTransform
 from xdflow.transforms.normalization import ZScoreTransform
 
 maybe_zscore = OptionalTransform(
-    ZScoreTransform(by_dim="channel", use_fit=True),
+    ZScoreTransform(per_dim="channel", use_fit=True),
     use=True,
 )
 ```
@@ -114,7 +114,7 @@ from xdflow.transforms.normalization import ZScoreTransform
 
 subject_norm = GroupApplyTransform(
     group_coord="subject",
-    transform_template=ZScoreTransform(by_dim="channel", use_fit=True),
+    transform_template=ZScoreTransform(per_dim="channel", use_fit=True),
 )
 ```
 
@@ -129,7 +129,7 @@ For multiple coordinates, pass a list. XDFlow combines those coordinate values i
 ```python
 per_animal_session = GroupApplyTransform(
     group_coord=["animal", "session"],
-    transform_template=ZScoreTransform(by_dim="channel", use_fit=True),
+    transform_template=ZScoreTransform(per_dim="channel", use_fit=True),
 )
 ```
 

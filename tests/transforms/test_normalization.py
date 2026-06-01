@@ -8,11 +8,11 @@ from xdflow.transforms.normalization import DemeanTransform, ZScoreTransform
 class TestDemeanTransform:
     """Test DemeanTransform functionality."""
 
-    def test_demean_by_time(self, data_container_factory):
+    def test_demean_per_time(self, data_container_factory):
         """Test demeaning per time point (compute mean over trial/channel)."""
         container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
-        # by_dim="time" means: demean PER time point (compute mean over trial, channel)
-        transform = DemeanTransform(by_dim="time")
+        # per_dim="time" means: demean PER time point (compute mean over trial, channel)
+        transform = DemeanTransform(per_dim="time")
 
         result = transform.fit_transform(container)
 
@@ -20,11 +20,11 @@ class TestDemeanTransform:
         trial_channel_means = result.data.mean(dim=["trial", "channel"])
         np.testing.assert_array_almost_equal(trial_channel_means.values, 0, decimal=10)
 
-    def test_demean_by_channel(self, data_container_factory):
+    def test_demean_per_channel(self, data_container_factory):
         """Test demeaning per channel (compute mean over trial/time)."""
         container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
-        # by_dim="channel" means: demean PER channel (compute mean over trial, time)
-        transform = DemeanTransform(by_dim="channel")
+        # per_dim="channel" means: demean PER channel (compute mean over trial, time)
+        transform = DemeanTransform(per_dim="channel")
 
         result = transform.fit_transform(container)
 
@@ -37,7 +37,7 @@ class TestDemeanTransform:
         train_container = data_container_factory(n_trials=10, n_channels=8, n_time=100, seed=42)
         test_container = data_container_factory(n_trials=5, n_channels=8, n_time=100, seed=43)
 
-        transform = DemeanTransform(by_dim="time", use_fit=True)
+        transform = DemeanTransform(per_dim="time", use_fit=True)
 
         # Fit on train
         transform.fit(train_container)
@@ -53,11 +53,11 @@ class TestDemeanTransform:
 class TestZScoreTransform:
     """Test ZScoreTransform functionality."""
 
-    def test_zscore_by_time(self, data_container_factory):
+    def test_zscore_per_time(self, data_container_factory):
         """Test z-scoring per time point (compute stats over trial/channel)."""
         container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
-        # by_dim="time" means: z-score PER time point
-        transform = ZScoreTransform(by_dim="time")
+        # per_dim="time" means: z-score PER time point
+        transform = ZScoreTransform(per_dim="time")
 
         result = transform.fit_transform(container)
 
@@ -68,11 +68,11 @@ class TestZScoreTransform:
         np.testing.assert_array_almost_equal(trial_channel_means.values, 0, decimal=10)
         np.testing.assert_array_almost_equal(trial_channel_stds.values, 1, decimal=1)
 
-    def test_zscore_by_channel(self, data_container_factory):
+    def test_zscore_per_channel(self, data_container_factory):
         """Test z-scoring per channel (compute stats over trial/time)."""
         container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
-        # by_dim="channel" means: z-score PER channel
-        transform = ZScoreTransform(by_dim="channel")
+        # per_dim="channel" means: z-score PER channel
+        transform = ZScoreTransform(per_dim="channel")
 
         result = transform.fit_transform(container)
 
@@ -88,7 +88,7 @@ class TestZScoreTransform:
         train_container = data_container_factory(n_trials=10, n_channels=8, n_time=100, seed=42)
         test_container = data_container_factory(n_trials=5, n_channels=8, n_time=100, seed=43)
 
-        transform = ZScoreTransform(by_dim="time", use_fit=True)
+        transform = ZScoreTransform(per_dim="time", use_fit=True)
 
         # Fit on train
         transform.fit(train_container)
@@ -108,8 +108,8 @@ class TestNormalizationComparison:
         """Test that ZScore scales variance but Demean doesn't."""
         container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
 
-        demean = DemeanTransform(by_dim="time")
-        zscore = ZScoreTransform(by_dim="time")
+        demean = DemeanTransform(per_dim="time")
+        zscore = ZScoreTransform(per_dim="time")
 
         demean_result = demean.fit_transform(container)
         zscore_result = zscore.fit_transform(container)
@@ -127,3 +127,47 @@ class TestNormalizationComparison:
         # Demean should NOT have std ~1
         demean_stds = demean_result.data.std(dim=["trial", "channel"])
         assert not np.allclose(demean_stds.values, 1, atol=0.2)
+
+    def test_per_dim_is_public_constructor_parameter(self):
+        """Test per_dim is exposed through params and clone."""
+        transform = ZScoreTransform(per_dim="time", use_fit=True)
+
+        params = transform.get_params(deep=False)
+        cloned = transform.clone()
+
+        assert params["per_dim"] == "time"
+        assert set(params) == {
+            "per_dim",
+            "use_fit",
+            "is_stateful",
+            "fit_sel",
+            "sel",
+            "drop_sel",
+            "transform_sel",
+            "transform_drop_sel",
+        }
+        assert cloned.per_dim == "time"
+        assert cloned.use_fit is True
+
+    def test_per_dim_accepts_multiple_dimensions(self, data_container_factory):
+        """Test z-scoring per channel/time coordinate."""
+        container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
+        transform = ZScoreTransform(per_dim=["channel", "time"])
+
+        result = transform.fit_transform(container)
+
+        trial_means = result.data.mean(dim="trial")
+        trial_stds = result.data.std(dim="trial")
+        np.testing.assert_array_almost_equal(trial_means.values, 0, decimal=10)
+        np.testing.assert_array_almost_equal(trial_stds.values, 1, decimal=1)
+
+    def test_set_params_updates_per_dim_behavior(self, data_container_factory):
+        """Test tuning-style per_dim updates change the statistics dimensions."""
+        container = data_container_factory(n_trials=5, n_channels=8, n_time=100)
+        transform = ZScoreTransform(per_dim="time")
+
+        transform.set_params(per_dim="channel")
+        result = transform.fit_transform(container)
+
+        trial_time_means = result.data.mean(dim=["trial", "time"])
+        np.testing.assert_array_almost_equal(trial_time_means.values, 0, decimal=10)

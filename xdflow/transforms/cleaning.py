@@ -15,6 +15,10 @@ def _signal_channel_mask(channel_values: np.ndarray, excluded_channels: Sequence
     return ~np.isin(channel_values, np.asarray(excluded_channels, dtype=object))
 
 
+def _normalize_per_dim(per_dim: str | list[str] | tuple[str, ...]) -> tuple[str, ...]:
+    return (per_dim,) if isinstance(per_dim, str) else tuple(per_dim)
+
+
 class CARTransform(Transform):
     """
     Apply Common Average Referencing (CAR) to the data.
@@ -121,13 +125,13 @@ class RegressOutReferenceTransform(Transform):
 
 class RemoveOutliersTransform(Transform):
     """
-    Remove outliers from the data by clipping.
+    Remove outliers from the data by clipping independently per selected dimension label.
 
     Outliers are identified as values exceeding a specified number of standard
     deviations from the mean. They are replaced by the boundary value.
 
     Args:
-        by_dim (str): The dimension along which to compute stats.
+        per_dim: Dimension or dimensions to keep distinct while computing stats.
         std_threshold (float): The number of standard deviations to use as the
             threshold. Defaults to 5.0.
         use_fit (bool): Whether to use the fit data to compute the mean and std.
@@ -137,8 +141,10 @@ class RemoveOutliersTransform(Transform):
         transform_drop_sel (dict, optional): A dictionary to select a subset of
             data for transformation by excluding labels, leaving the rest untouched.
 
-    E.g. if your input dims are ("trial", "channel", "time"), and you set by_dim to "channel",
+    E.g. if your input dims are ("trial", "channel", "time"), and you set per_dim to "channel",
     then the data will be clipped per channel by clipping the data to the std_threshold from the mean of trial and time per channel.
+    Unlike xarray's `dim=`, `per_dim` does not name dimensions to reduce.
+    When multiple dimensions are provided, clipping bounds are computed separately for each coordinate tuple across those dimensions.
     """
 
     input_dims: tuple[str, ...] = ()
@@ -147,7 +153,7 @@ class RemoveOutliersTransform(Transform):
 
     def __init__(
         self,
-        by_dim: str,
+        per_dim: str | list[str] | tuple[str, ...],
         std_threshold: float = 5.0,
         use_fit: bool = False,
         sel: dict[str, object] | None = None,
@@ -157,7 +163,7 @@ class RemoveOutliersTransform(Transform):
     ):
         super().__init__(sel=sel, drop_sel=drop_sel, transform_sel=transform_sel, transform_drop_sel=transform_drop_sel)
         self.std_threshold = std_threshold
-        self.by_dim = by_dim
+        self.per_dim = per_dim
         self.use_fit = use_fit
         self.is_stateful = self.use_fit
 
@@ -170,7 +176,8 @@ class RemoveOutliersTransform(Transform):
         the data it is given.
         """
         if self.use_fit:
-            mean_dims = [d for d in data_container.data.dims if d != self.by_dim]
+            per_dims = _normalize_per_dim(self.per_dim)
+            mean_dims = [d for d in data_container.data.dims if d not in per_dims]
             self.mean = data_container.data.mean(dim=mean_dims)
             self.std = data_container.data.std(dim=mean_dims)
         return self
@@ -192,7 +199,8 @@ class RemoveOutliersTransform(Transform):
             mean = self.mean
             std = self.std
         else:
-            mean_dims = [d for d in data.dims if d != self.by_dim]
+            per_dims = _normalize_per_dim(self.per_dim)
+            mean_dims = [d for d in data.dims if d not in per_dims]
             mean = data.mean(dim=mean_dims)
             std = data.std(dim=mean_dims)
         lower_bound = mean - std_threshold * std

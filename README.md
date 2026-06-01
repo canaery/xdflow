@@ -9,7 +9,7 @@
 
 That lets the pipeline do more for you:
 
-- Transforms operate on named dimensions, so feature construction reads as `by_dim=["trial"]` rather than `axis=0`.
+- Shape-preserving transforms operate on named dimensions, so `per_dim="trial"` means normalize each trial independently using statistics over the remaining dimensions.
 - Target, group, session, and subject coordinates drive validation without custom split code.
 - The pipeline knows which steps are stateful and which are reusable, so expensive stateless work runs once across folds and tuning trials.
 - Predictions, scores, and out-of-fold outputs stay tied to the coordinates that produced them, which makes alignment mistakes easier to catch.
@@ -85,7 +85,7 @@ container = DataContainer(data)
 pipeline = Pipeline(
     name="core_quickstart",
     steps=[
-        ("zscore", ZScoreTransform(by_dim=["trial"])),
+        ("zscore", ZScoreTransform(per_dim="trial")),
         ("flatten", FlattenTransform(dims=("channel", "time"))),
         (
             "classifier",

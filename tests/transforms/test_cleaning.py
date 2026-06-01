@@ -3,7 +3,8 @@
 import numpy as np
 import pytest
 
-from xdflow.transforms.cleaning import CARTransform
+from xdflow.core.data_container import DataContainer
+from xdflow.transforms.cleaning import CARTransform, RemoveOutliersTransform
 
 
 class TestCARTransform:
@@ -45,3 +46,36 @@ class TestCARTransform:
         container = data_container_factory(n_trials=4, n_channels=5, n_time=6)
 
         assert_transform_immutability(CARTransform(), container)
+
+
+class TestRemoveOutliersTransform:
+    def test_clips_outliers_per_channel(self, data_container_factory):
+        container = data_container_factory(n_trials=4, n_channels=3, n_time=5)
+        data = container.data.copy(deep=True)
+        outlier_coord = {"trial": 0, "channel": "ch0", "time": data.coords["time"].values[0]}
+        data.loc[outlier_coord] = 100.0
+
+        result = RemoveOutliersTransform(per_dim="channel", std_threshold=1.0).transform(DataContainer(data))
+
+        assert result.data.sel(outlier_coord).item() < 100.0
+        assert result.data.dims == container.data.dims
+
+    def test_per_dim_is_public_constructor_parameter(self):
+        transform = RemoveOutliersTransform(per_dim=["channel", "time"], std_threshold=4.0)
+
+        params = transform.get_params(deep=False)
+        cloned = transform.clone()
+
+        assert params["per_dim"] == ["channel", "time"]
+        assert set(params) == {
+            "per_dim",
+            "std_threshold",
+            "use_fit",
+            "is_stateful",
+            "sel",
+            "drop_sel",
+            "transform_sel",
+            "transform_drop_sel",
+        }
+        assert cloned.per_dim == ["channel", "time"]
+        assert cloned.std_threshold == 4.0

@@ -65,7 +65,7 @@ from xdflow.composite import OptionalTransform
 from xdflow.transforms.normalization import ZScoreTransform
 
 maybe_zscore = OptionalTransform(
-    ZScoreTransform(by_dim="channel", use_fit=True),
+    ZScoreTransform(per_dim="channel", use_fit=True),
     use=True,
 )
 ```

@@ -50,7 +50,7 @@ pipeline = Pipeline(
     name="decode_stimulus",
     steps=[
         ("car", CARTransform(car_method="all")),
-        ("zscore", ZScoreTransform(by_dim=["trial"])),
+        ("zscore", ZScoreTransform(per_dim="trial")),
         (
             "multitaper",
             MultiTaperTransform(
@@ -85,6 +85,10 @@ pipeline = Pipeline(
     ],
 )
 ```
+
+Here `per_dim="trial"` means z-scoring is done independently for each trial,
+using statistics over the remaining dimensions. It does not reduce or remove the
+`trial` dimension.
 
 You can inspect the expected shape evolution ahead of time:
 

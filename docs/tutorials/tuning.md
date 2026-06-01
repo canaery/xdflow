@@ -25,7 +25,7 @@ from xdflow.transforms.sklearn_transform import SKLearnPredictor
 pipeline = Pipeline(
     name="logistic_pipeline",
     steps=[
-        ("zscore", ZScoreTransform(by_dim=["trial"])),
+        ("zscore", ZScoreTransform(per_dim="trial")),
         ("flatten", FlattenTransform(dims=("channel", "time"))),
         (
             "classifier",
@@ -131,7 +131,7 @@ pipeline = Pipeline(
         (
             "maybe_zscore",
             OptionalTransform(
-                ZScoreTransform(by_dim=["trial"]),
+                ZScoreTransform(per_dim="trial"),
                 use=True,
             ),
         ),
@@ -152,7 +152,7 @@ param_grid = {
     "optional_preprocessing": {
         "maybe_zscore": {
             "zscoretransform": {
-                "by_dim": [["trial"], ["channel"]],
+                "per_dim": ["trial", "channel"],
             },
         },
         "classifier": {

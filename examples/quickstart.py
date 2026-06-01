@@ -60,7 +60,7 @@ def build_pipeline() -> Pipeline:
     return Pipeline(
         name="core_quickstart",
         steps=[
-            ("zscore", ZScoreTransform(by_dim=["trial"])),
+            ("zscore", ZScoreTransform(per_dim="trial")),
             ("flatten", FlattenTransform(dims=("channel", "time"))),
             (
                 "classifier",

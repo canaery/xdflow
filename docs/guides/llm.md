@@ -91,7 +91,7 @@ from xdflow.transforms.sklearn_transform import SKLearnPredictor, SKLearnTransfo
 pipeline = Pipeline(
     name="classifier",
     steps=[
-        ("zscore", ZScoreTransform(by_dim=["trial"])),
+        ("zscore", ZScoreTransform(per_dim="trial")),
         ("flatten", FlattenTransform(dims=("channel", "time"))),
         ("pca", SKLearnTransformer(PCA, sample_dim="trial", n_components=20)),
         ("clf", SKLearnPredictor(LogisticRegression, sample_dim="trial", target_coord="stimulus")),
