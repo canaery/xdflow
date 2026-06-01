@@ -58,7 +58,7 @@ pipeline = Pipeline(
                 num_time_windows=4,
                 time_halfbandwidth_product=2,
                 avg_over_time_windows=True,
-                avg_over_freq_bands=True,
+                avg_within_freq_bands=True,
                 freq_ranges=freq_ranges,
                 n_jobs=-1,
             ),

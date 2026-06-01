@@ -47,12 +47,11 @@ class MultiTaperTransform(Transform):
         log_transform: bool = True,
         avg_over_tapers: bool = True,
         avg_over_time_windows: bool = False,
-        avg_over_freq_bands: bool = False,
+        avg_within_freq_bands: bool = False,
         freq_ranges: dict[str, tuple[float, float]] | None = None,
         n_jobs: int = 1,
         sel: dict[str, Any] | None = None,
         drop_sel: dict[str, Any] | None = None,
-        **kwargs,
     ):
         """
         Initializes the MultiTaperTransform.
@@ -68,11 +67,12 @@ class MultiTaperTransform(Transform):
             log_transform: If True, applies a log10 transform to the power.
             avg_over_tapers: If True, averages the power across tapers.
             avg_over_time_windows: If True, averages the power across time windows.
-            avg_over_freq_bands: If True, averages power within the specified `freq_ranges`.
+            avg_within_freq_bands: If True, averages power within each specified `freq_ranges` band.
             freq_ranges: A dictionary defining frequency bands for averaging, e.g.,
-                         {"gamma": (40, 80)}. Required if `avg_over_freq_bands` is True.
+                         {"gamma": (40, 80)}. Required if `avg_within_freq_bands` is True.
             n_jobs: Number of parallel jobs to run. If > 1, trials will be processed in parallel.
-            subset_query: Optional dictionary for selecting a subset of the data before transforming.
+            sel: Optional label selection applied before transforming.
+            drop_sel: Optional labels to drop before transforming.
         """
         super().__init__(sel=sel, drop_sel=drop_sel)
         if not 0 < window_step_frac <= 1:
@@ -94,12 +94,12 @@ class MultiTaperTransform(Transform):
         self.log_transform = log_transform
         self.avg_over_tapers = avg_over_tapers
         self.avg_over_time_windows = avg_over_time_windows
-        self.avg_over_freq_bands = avg_over_freq_bands
+        self.avg_within_freq_bands = avg_within_freq_bands
         self.freq_ranges = freq_ranges
         self.n_jobs = n_jobs
 
-        if self.avg_over_freq_bands and not self.freq_ranges:
-            raise ValueError("`freq_ranges` must be provided when `avg_over_freq_bands` is True.")
+        if self.avg_within_freq_bands and not self.freq_ranges:
+            raise ValueError("`freq_ranges` must be provided when `avg_within_freq_bands` is True.")
 
     def get_expected_output_dims(self, input_dims: tuple[str, ...]) -> tuple[str, ...]:
         """
@@ -115,7 +115,7 @@ class MultiTaperTransform(Transform):
             dims.discard("taper")
         if self.avg_over_time_windows:
             dims.discard("time_window")
-        if self.avg_over_freq_bands:
+        if self.avg_within_freq_bands:
             dims.discard("frequency")
             dims.add("freq_band")
 
@@ -182,10 +182,10 @@ class MultiTaperTransform(Transform):
             processed_power = processed_power.mean(axis=time_axis, dtype=np.float32)
             current_dims.remove("time_window")
 
-        # Handle frequency band averaging
-        if self.avg_over_freq_bands:
+        # Average frequency bins within each requested band.
+        if self.avg_within_freq_bands:
             if self.freq_ranges is None:
-                raise ValueError("`freq_ranges` must be provided when `avg_over_freq_bands` is True.")
+                raise ValueError("`freq_ranges` must be provided when `avg_within_freq_bands` is True.")
             freq_axis = current_dims.index("frequency")
             band_results = []
             for _band_name, (f_low, f_high) in self.freq_ranges.items():
@@ -197,7 +197,7 @@ class MultiTaperTransform(Transform):
                     # Skip bands that have no frequency bins
                     continue
 
-                # Average over frequency band
+                # Average within this frequency band.
                 band_power = np.take(processed_power, freq_indices, axis=freq_axis).mean(
                     axis=freq_axis, dtype=np.float32
                 )
@@ -214,7 +214,7 @@ class MultiTaperTransform(Transform):
         # Current dims are tracked in `current_dims`. We want:
         #   ("channel", "freq_band"|"frequency", ["time_window" if present], ["taper" if present])
         canonical_dims = ["channel"]
-        canonical_dims.append("freq_band" if self.avg_over_freq_bands else "frequency")
+        canonical_dims.append("freq_band" if self.avg_within_freq_bands else "frequency")
         if not self.avg_over_time_windows:
             canonical_dims.append("time_window")
         if not self.avg_over_tapers:
@@ -258,9 +258,9 @@ class MultiTaperTransform(Transform):
         coords = {}
 
         # Determine final shape and dimensions based on averaging
-        if self.avg_over_freq_bands:
+        if self.avg_within_freq_bands:
             if self.freq_ranges is None:
-                raise ValueError("`freq_ranges` must be provided when `avg_over_freq_bands` is True.")
+                raise ValueError("`freq_ranges` must be provided when `avg_within_freq_bands` is True.")
             # Filter bands that actually have frequency support
             band_names: list[str] = []
             for band_name, (f_low, f_high) in self.freq_ranges.items():
