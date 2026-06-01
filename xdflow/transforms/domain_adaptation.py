@@ -925,7 +925,7 @@ class ProcrustesAligner(SingleTargetAligner, SamplingMixin):
         transformed_values = (data.values - source_centroid) @ rotation_matrix * scale + target_centroid
 
         # Create new DataArray with transformed data, transpose to match original dimensions
-        transformed_da = xr.DataArray(transformed_values, dims=data.dims, coords=data.coords)
+        transformed_da = xr.DataArray(transformed_values, dims=data.dims, coords=data.coords, attrs=data.attrs)
         transformed_da = transformed_da.transpose(*original_dims)
 
         return DataContainer(transformed_da)
@@ -1073,7 +1073,7 @@ class CoralAligner(SingleTargetAligner):
         transformed_data = transformed_data.real
 
         # Create new DataArray with transformed data, transpose to match original dimensions
-        transformed_da = xr.DataArray(transformed_data, dims=data.dims, coords=data.coords)
+        transformed_da = xr.DataArray(transformed_data, dims=data.dims, coords=data.coords, attrs=data.attrs)
         transformed_da = transformed_da.transpose(*original_dims)
 
         return DataContainer(transformed_da)
@@ -1194,7 +1194,7 @@ class SAAligner(SingleTargetAligner):
         transformed_data = (data.values - source_centroid) @ transform_matrix + target_centroid
 
         # Create new DataArray with transformed data, transpose to match original dimensions
-        transformed_da = xr.DataArray(transformed_data, dims=data.dims, coords=data.coords)
+        transformed_da = xr.DataArray(transformed_data, dims=data.dims, coords=data.coords, attrs=data.attrs)
         transformed_da = transformed_da.transpose(*original_dims)
 
         return DataContainer(transformed_da)

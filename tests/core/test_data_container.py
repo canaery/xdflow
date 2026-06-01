@@ -3,6 +3,7 @@
 import numpy as np
 import xarray as xr
 
+from xdflow.core.base import Transform
 from xdflow.core.data_container import DataContainer
 
 
@@ -36,6 +37,17 @@ class TestDataContainerCreation:
         assert "data_history" in simple_container.data.attrs
         assert simple_container.data.attrs["data_history"] == []
 
+    def test_history_list_is_copied_from_source_dataarray(self):
+        """Test that wrapping data does not share the mutable history list."""
+        history = []
+        data = xr.DataArray(np.random.randn(10, 5), dims=["trial", "feature"], attrs={"data_history": history})
+
+        container = DataContainer(data)
+        container.data.attrs["data_history"].append({"class": "Example", "params": {}})
+
+        assert data.attrs["data_history"] == []
+        assert container.data.attrs["data_history"] is not history
+
 
 class TestDataContainerProperties:
     """Test DataContainer properties and methods."""
@@ -68,6 +80,72 @@ class TestDataContainerProperties:
         assert "DataContainer" in str_summary
         assert "dimensions" in str_summary
         assert "transform" in str_summary
+
+    def test_repeated_transform_does_not_accumulate_history_on_source_container(self, simple_container):
+        """Test history isolation for a new container wrapping the same array."""
+
+        class IdentityCopyTransform(Transform):
+            def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
+                return DataContainer(container.data)
+
+        transform = IdentityCopyTransform()
+
+        for _ in range(3):
+            result = transform.transform(simple_container)
+            assert len(result.data.attrs["data_history"]) == 1
+            assert result.data.attrs["data_history"] is not simple_container.data.attrs["data_history"]
+
+        assert simple_container.data.attrs["data_history"] == []
+
+    def test_transform_history_survives_dropped_output_attrs(self, simple_container):
+        """Test that transforms cannot accidentally delete prior history."""
+
+        class DropAttrsTransform(Transform):
+            def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
+                dropped = xr.DataArray(
+                    container.data.values.copy(),
+                    dims=container.data.dims,
+                    coords=container.data.coords,
+                    attrs={},
+                )
+                return DataContainer(dropped)
+
+        simple_container.data.attrs["data_history"] = [{"class": "PreviousTransform", "params": {}}]
+
+        result = DropAttrsTransform().transform(simple_container)
+
+        assert [entry["class"] for entry in result.data.attrs["data_history"]] == [
+            "PreviousTransform",
+            "DropAttrsTransform",
+        ]
+        assert [entry["class"] for entry in simple_container.data.attrs["data_history"]] == ["PreviousTransform"]
+
+    def test_transform_history_survives_output_attrs_missing_history(self, simple_container):
+        """Test that partial output attrs cannot omit prior history."""
+
+        class PartialAttrsTransform(Transform):
+            def _transform(self, container: DataContainer, **kwargs) -> DataContainer:
+                partial_attrs = {"output_marker": "kept"}
+                output = xr.DataArray(
+                    container.data.values.copy(),
+                    dims=container.data.dims,
+                    coords=container.data.coords,
+                    attrs=partial_attrs,
+                )
+                return DataContainer(output)
+
+        simple_container.data.attrs["data_history"] = [{"class": "PreviousTransform", "params": {}}]
+        simple_container.data.attrs["input_marker"] = "dropped-by-transform"
+
+        result = PartialAttrsTransform().transform(simple_container)
+
+        assert result.data.attrs["output_marker"] == "kept"
+        assert "input_marker" not in result.data.attrs
+        assert [entry["class"] for entry in result.data.attrs["data_history"]] == [
+            "PreviousTransform",
+            "PartialAttrsTransform",
+        ]
+        assert [entry["class"] for entry in simple_container.data.attrs["data_history"]] == ["PreviousTransform"]
 
 
 class TestDataContainerOperations:

@@ -247,7 +247,7 @@ class Transform(ABC):
             duration = end_time - start_time
             print(f"Ending {self.__class__.__name__}.transform - took {duration:.3f}s")
 
-        return self._log_history(transformed_container)
+        return self._log_history(container, transformed_container)
 
     def _check_transform_sel_output(self, data_to_transform: DataContainer, transformed_part: DataContainer) -> None:
         """
@@ -359,7 +359,7 @@ class Transform(ABC):
             else:
                 self._fit(container, **kwargs)
                 transformed_container = self._transform(container, **kwargs)
-            result = self._log_history(transformed_container)
+            result = self._log_history(container, transformed_container)
         else:
             # For stateless transforms, just transform
             result = self.transform(container, **kwargs)
@@ -450,10 +450,22 @@ class Transform(ABC):
                 )
         return self
 
-    def _log_history(self, container: DataContainer) -> DataContainer:
+    def _log_history(self, source_container: DataContainer, container: DataContainer) -> DataContainer:
         """Helper to log the transform to the DataArray's attributes."""
         log_entry = {"class": self.__class__.__name__, "params": self.get_params(deep=False)}
-        container.data.attrs["data_history"].append(log_entry)
+        attrs = dict(container.data.attrs)
+        source_history = list(source_container.data.attrs.get("data_history", []))
+        output_history = list(attrs.get("data_history", []))
+
+        if output_history[: len(source_history)] == source_history:
+            history = output_history
+        else:
+            # If output history diverges, treat it as extra output-local provenance after lost source history.
+            history = source_history + output_history
+
+        history.append(log_entry)
+        attrs["data_history"] = history
+        container.data.attrs = attrs
         return container
 
 
@@ -855,7 +867,7 @@ class Predictor(Transform, ABC):
             new_container.data.loc[cast(dict[str, Any], effective_transform_sel)] = transformed_container.data
             transformed_container = new_container
 
-        result = self._log_history(transformed_container)
+        result = self._log_history(container, transformed_container)
 
         if verbose:
             end_time = time.time()

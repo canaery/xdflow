@@ -118,7 +118,12 @@ class RegressOutReferenceTransform(Transform):
             predicted_flat = model.predict(ref_signal_flat)
 
             predicted_reshaped = predicted_flat.reshape(lfp_signal_da.shape)
-            predicted_da = xr.DataArray(predicted_reshaped, dims=lfp_signal_da.dims, coords=lfp_signal_da.coords)
+            predicted_da = xr.DataArray(
+                predicted_reshaped,
+                dims=lfp_signal_da.dims,
+                coords=lfp_signal_da.coords,
+                attrs=lfp_signal_da.attrs,
+            )
             data.loc[{"channel": chan}] -= predicted_da
         return DataContainer(data)
 

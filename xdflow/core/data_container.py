@@ -59,9 +59,10 @@ class DataContainer:
         # Create a shallow copy to ensure immutability (deep copy not needed for xarray immutability)
         self._data = data.copy(deep=False)
 
-        # Initialize History
-        if "data_history" not in self._data.attrs:
-            self._data.attrs["data_history"] = []
+        # Initialize history without sharing the mutable list across containers.
+        attrs = dict(self._data.attrs)
+        attrs["data_history"] = list(attrs.get("data_history", []))
+        self._data.attrs = attrs
 
     def __getstate__(self):
         """Return the state to be pickled."""

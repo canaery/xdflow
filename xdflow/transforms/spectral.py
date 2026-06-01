@@ -337,7 +337,7 @@ class MultiTaperTransform(Transform):
         if "taper" in final_sizes and ("taper" not in coords or len(coords.get("taper", [])) != final_sizes["taper"]):
             coords["taper"] = np.arange(final_sizes["taper"])  # type: ignore[index]
 
-        tf_data = xr.DataArray(tf_data_np, dims=final_dims, coords={**original_coords, **coords})
+        tf_data = xr.DataArray(tf_data_np, dims=final_dims, coords={**original_coords, **coords}, attrs=data.attrs)
 
         new_container = DataContainer(tf_data)
         return new_container

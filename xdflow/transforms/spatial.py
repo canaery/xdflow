@@ -131,7 +131,7 @@ def _map_to_grid(data: xr.DataArray, electrode_grid: np.ndarray) -> xr.DataArray
     output_coords = {d: data.coords[d] for d in data.coords.keys() if d != "channel"}
     output_shape = (*[data.sizes[d] for d in other_dims], *grid_shape)
 
-    gridded_data = xr.DataArray(np.full(output_shape, np.nan), dims=output_dims, coords=output_coords)
+    gridded_data = xr.DataArray(np.full(output_shape, np.nan), dims=output_dims, coords=output_coords, attrs=data.attrs)
 
     target_rows, target_cols = _get_grid_mapping(data.coords["channel"].values.astype(int), electrode_grid)
 
@@ -442,7 +442,12 @@ class LaplacianCSDTransform(Transform):
 
         # CSD is proportional to the negative Laplacian
         t0 = time.perf_counter()
-        laplacian_csd_grid = xr.DataArray(-laplacian_grid_values, dims=gridded_data.dims, coords=gridded_data.coords)
+        laplacian_csd_grid = xr.DataArray(
+            -laplacian_grid_values,
+            dims=gridded_data.dims,
+            coords=gridded_data.coords,
+            attrs=gridded_data.attrs,
+        )
         if self.verbosity:
             dt = time.perf_counter() - t0
             print(f"[LaplacianCSD] assemble_csd done in {dt * 1000:.1f} ms")
@@ -650,7 +655,9 @@ class GaussianPyramidTransform(Transform):
                 break
 
             if self.handle_nans and np.any(np.isnan(current_stack)):
-                current_stack = _fill_nan_mean_neighbors(xr.DataArray(current_stack, dims=gridded_data.dims)).values
+                current_stack = _fill_nan_mean_neighbors(
+                    xr.DataArray(current_stack, dims=gridded_data.dims, attrs=gridded_data.attrs)
+                ).values
 
             # TODO: skip outer edges for first level?
 

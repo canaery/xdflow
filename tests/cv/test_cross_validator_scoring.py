@@ -53,6 +53,24 @@ def test_auto_metric_selection_classification():
     assert cv.oof_score_ == cv.oof_f1_score_
 
 
+def test_cross_validate_does_not_accumulate_history_on_input():
+    data = _create_eval_data(task="classification")
+    clf = SKLearnPredictor(
+        LogisticRegression,
+        sample_dim="trial",
+        target_coord="stimulus",
+        max_iter=200,
+    )
+    pipeline = Pipeline("clf_pipeline", [("clf", clf)])
+    cv = KFoldValidator(n_splits=3)
+    cv.pipeline = pipeline
+
+    for _ in range(3):
+        cv.cross_validate(data, verbose=False)
+
+    assert data.data.attrs["data_history"] == []
+
+
 def test_auto_metric_selection_regression():
     data = _create_eval_data(task="regression")
     reg = SKLearnPredictor(
